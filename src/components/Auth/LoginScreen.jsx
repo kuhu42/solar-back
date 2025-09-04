@@ -1,21 +1,34 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import { authService } from '../../lib/auth.js';
 import { USER_ROLES } from '../../types/index.js';
-import { Sun, User, Lock, UserPlus, MapPin, Upload, Camera } from 'lucide-react';
+import { Sun, User, Lock, UserPlus, MapPin, Upload, Camera, Eye, EyeOff } from 'lucide-react';
 
 const LoginScreen = () => {
-  const { login } = useApp();
-  const [activeMode, setActiveMode] = useState('login'); // 'login', 'register-type', 'customer-form', 'professional-form'
+  const { setCurrentUser, showToast } = useApp();
+  const [activeMode, setActiveMode] = useState('login'); // 'login', 'signup', 'register-type', 'customer-form', 'professional-form'
   const [selectedRole, setSelectedRole] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  
+  // Login form
   const [loginForm, setLoginForm] = useState({
     email: '',
-    role: ''
+    password: ''
   });
-  const [customerForm, setCustomerForm] = useState({
-    name: '',
-    phone: '',
-    serviceNumber: '',
+
+  // Signup form
+  const [signupForm, setSignupForm] = useState({
     email: '',
+    password: '',
+    confirmPassword: '',
+    name: '',
+    phone: ''
+  });
+
+  // Customer registration form
+  const [customerForm, setCustomerForm] = useState({
+    serviceNumber: '',
     address: '',
     coordinates: { lat: null, lng: null },
     moduleType: '',
@@ -29,11 +42,10 @@ const LoginScreen = () => {
     panPhoto: null,
     bankBookPhoto: null
   });
+
+  // Professional registration form
   const [professionalForm, setProfessionalForm] = useState({
-    name: '',
     role: '',
-    phone: '',
-    email: '',
     education: '',
     address: '',
     photo: null,
@@ -41,13 +53,72 @@ const LoginScreen = () => {
     panPhoto: null,
     bankDetails: ''
   });
+
   const [gettingLocation, setGettingLocation] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    const user = login(loginForm.email, loginForm.role);
-    if (!user) {
-      alert('Invalid credentials. Try: admin@greensolar.com or select a role.');
+    setLoading(true);
+
+    try {
+      const { user } = await authService.signIn(loginForm.email, loginForm.password);
+      
+      if (user) {
+        // Get user profile from database
+        const profile = await dbService.getUserProfileById(user.id);
+        
+        if (profile) {
+          if (profile.status === 'rejected') {
+            showToast('Your account has been rejected. Please contact support.', 'error');
+            await authService.signOut();
+            return;
+          }
+          
+          setCurrentUser(profile);
+          showToast('Login successful!');
+        } else {
+          showToast('User profile not found', 'error');
+        }
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      showToast(error.message || 'Login failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    
+    if (signupForm.password !== signupForm.confirmPassword) {
+      showToast('Passwords do not match', 'error');
+      return;
+    }
+
+    if (signupForm.password.length < 6) {
+      showToast('Password must be at least 6 characters', 'error');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const userData = {
+        name: signupForm.name,
+        phone: signupForm.phone,
+        role: 'customer' // Default role, will be updated in form
+      };
+
+      await authService.signUp(signupForm.email, signupForm.password, userData);
+      
+      showToast('Account created! Please check your email for verification.');
+      setActiveMode('register-type');
+    } catch (error) {
+      console.error('Signup error:', error);
+      showToast(error.message || 'Signup failed', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -64,16 +135,16 @@ const LoginScreen = () => {
             }
           }));
           setGettingLocation(false);
-          alert('Location captured successfully!');
+          showToast('Location captured successfully!');
         },
         (error) => {
           setGettingLocation(false);
-          alert('Unable to get location. Please enable location services.');
+          showToast('Unable to get location. Please enable location services.', 'error');
         }
       );
     } else {
       setGettingLocation(false);
-      alert('Geolocation is not supported by this browser.');
+      showToast('Geolocation is not supported by this browser.', 'error');
     }
   };
 
@@ -83,21 +154,77 @@ const LoginScreen = () => {
     } else {
       setProfessionalForm(prev => ({ ...prev, [field]: file }));
     }
-    alert(`${file.name} uploaded successfully!`);
+    showToast(`${file.name} uploaded successfully!`);
   };
 
-  const handleCustomerSubmit = (e) => {
+  const handleCustomerSubmit = async (e) => {
     e.preventDefault();
-    // Here you would typically send the data to your backend
-    alert('Customer registration submitted! Please wait for approval.');
-    setActiveMode('login');
+    setLoading(true);
+
+    try {
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        showToast('Please sign up first', 'error');
+        return;
+      }
+
+      const profileData = {
+        role: 'customer',
+        status: 'active', // Customers are auto-approved
+        address: customerForm.address,
+        profile_data: {
+          serviceNumber: customerForm.serviceNumber,
+          moduleType: customerForm.moduleType,
+          kwCapacity: customerForm.kwCapacity,
+          houseType: customerForm.houseType,
+          floors: customerForm.floors,
+          remarks: customerForm.remarks,
+          coordinates: customerForm.coordinates
+        }
+      };
+
+      await authService.updateUserProfile(user.id, profileData);
+      showToast('Customer registration completed! You can now login.');
+      setActiveMode('login');
+    } catch (error) {
+      console.error('Customer registration error:', error);
+      showToast(error.message || 'Registration failed', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleProfessionalSubmit = (e) => {
+  const handleProfessionalSubmit = async (e) => {
     e.preventDefault();
-    // Here you would typically send the data to your backend
-    alert('Professional registration submitted! Please wait for approval.');
-    setActiveMode('login');
+    setLoading(true);
+
+    try {
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        showToast('Please sign up first', 'error');
+        return;
+      }
+
+      const profileData = {
+        role: professionalForm.role,
+        status: 'pending', // Professionals need admin approval
+        education: professionalForm.education,
+        address: professionalForm.address,
+        bank_details: professionalForm.bankDetails,
+        profile_data: {
+          // Store additional professional data
+        }
+      };
+
+      await authService.updateUserProfile(user.id, profileData);
+      showToast('Professional registration submitted! Please wait for admin approval.');
+      setActiveMode('login');
+    } catch (error) {
+      console.error('Professional registration error:', error);
+      showToast(error.message || 'Registration failed', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const FileUploadField = ({ label, field, formType = 'customer', accept = "image/*" }) => {
@@ -137,6 +264,130 @@ const LoginScreen = () => {
     );
   };
 
+  // Signup Screen
+  if (activeMode === 'signup') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+          <div className="text-center mb-8">
+            <img 
+              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+              alt="GreenSolar Logo" 
+              className="h-16 w-auto mx-auto mb-4"
+            />
+            <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
+            <p className="text-gray-600 mt-2">Sign up to get started</p>
+          </div>
+
+          <form onSubmit={handleSignup} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={signupForm.name}
+                onChange={(e) => setSignupForm(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={signupForm.phone}
+                onChange={(e) => setSignupForm(prev => ({ ...prev, phone: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="email"
+                  value={signupForm.email}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={signupForm.password}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                  minLength="6"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={signupForm.confirmPassword}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                  minLength="6"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50"
+            >
+              {loading ? 'Creating Account...' : 'Create Account'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Already have an account?{' '}
+              <button
+                onClick={() => setActiveMode('login')}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Sign In
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (activeMode === 'register-type') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
@@ -147,8 +398,8 @@ const LoginScreen = () => {
               alt="GreenSolar Logo" 
               className="h-16 w-auto mx-auto mb-4"
             />
-            <h1 className="text-2xl font-bold text-gray-900">Choose Registration Type</h1>
-            <p className="text-gray-600 mt-2">Select your role to continue</p>
+            <h1 className="text-2xl font-bold text-gray-900">Complete Your Registration</h1>
+            <p className="text-gray-600 mt-2">Choose your role to continue</p>
           </div>
 
           <div className="space-y-4">
@@ -157,7 +408,7 @@ const LoginScreen = () => {
               className="w-full flex items-center justify-center px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <User className="w-5 h-5 mr-3" />
-              Register as Customer
+              I'm a Customer
             </button>
             
             <button
@@ -165,7 +416,7 @@ const LoginScreen = () => {
               className="w-full flex items-center justify-center px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
               <UserPlus className="w-5 h-5 mr-3" />
-              Register as Professional
+              I'm a Professional
             </button>
           </div>
 
@@ -193,54 +444,19 @@ const LoginScreen = () => {
               className="h-16 w-auto mx-auto mb-4"
             />
             <h1 className="text-2xl font-bold text-gray-900">Customer Registration</h1>
-            <p className="text-gray-600 mt-2">Fill in your details to get started</p>
+            <p className="text-gray-600 mt-2">Complete your customer profile</p>
           </div>
 
           <form onSubmit={handleCustomerSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name *</label>
-                <input
-                  type="text"
-                  value={customerForm.name}
-                  onChange={(e) => setCustomerForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
-                <input
-                  type="tel"
-                  value={customerForm.phone}
-                  onChange={(e) => setCustomerForm(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Service Number *</label>
-                <input
-                  type="text"
-                  value={customerForm.serviceNumber}
-                  onChange={(e) => setCustomerForm(prev => ({ ...prev, serviceNumber: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email ID *</label>
-                <input
-                  type="email"
-                  value={customerForm.email}
-                  onChange={(e) => setCustomerForm(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Service Number *</label>
+              <input
+                type="text"
+                value={customerForm.serviceNumber}
+                onChange={(e) => setCustomerForm(prev => ({ ...prev, serviceNumber: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
             </div>
 
             <div>
@@ -356,9 +572,10 @@ const LoginScreen = () => {
             <div className="flex items-center space-x-4 pt-6">
               <button
                 type="submit"
-                className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 font-medium"
+                disabled={loading}
+                className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
               >
-                Submit Registration
+                {loading ? 'Submitting...' : 'Complete Registration'}
               </button>
               <button
                 type="button"
@@ -389,55 +606,20 @@ const LoginScreen = () => {
           </div>
 
           <form onSubmit={handleProfessionalSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
-                <input
-                  type="text"
-                  value={professionalForm.name}
-                  onChange={(e) => setProfessionalForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
-                <select
-                  value={professionalForm.role}
-                  onChange={(e) => setProfessionalForm(prev => ({ ...prev, role: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select Role</option>
-                  <option value="agent">Agent</option>
-                  <option value="freelancer">Freelancer</option>
-                  <option value="installer">Installer</option>
-                  <option value="technician">Technician</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
-                <input
-                  type="tel"
-                  value={professionalForm.phone}
-                  onChange={(e) => setProfessionalForm(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email ID *</label>
-                <input
-                  type="email"
-                  value={professionalForm.email}
-                  onChange={(e) => setProfessionalForm(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+              <select
+                value={professionalForm.role}
+                onChange={(e) => setProfessionalForm(prev => ({ ...prev, role: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              >
+                <option value="">Select Role</option>
+                <option value="agent">Agent</option>
+                <option value="freelancer">Freelancer</option>
+                <option value="installer">Installer</option>
+                <option value="technician">Technician</option>
+              </select>
             </div>
 
             <div>
@@ -483,9 +665,10 @@ const LoginScreen = () => {
             <div className="flex items-center space-x-4 pt-6">
               <button
                 type="submit"
-                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 font-medium"
+                disabled={loading}
+                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 font-medium disabled:opacity-50"
               >
-                Submit Registration
+                {loading ? 'Submitting...' : 'Submit for Approval'}
               </button>
               <button
                 type="button"
@@ -535,43 +718,45 @@ const LoginScreen = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Role
+              Password
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <select
-                value={loginForm.role}
-                onChange={(e) => setLoginForm(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+              <input
+                type={showPassword ? "text" : "password"}
+                value={loginForm.password}
+                onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter your password"
                 required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
-                <option value="">Select your role</option>
-                <option value={USER_ROLES.COMPANY}>Company Admin</option>
-                <option value={USER_ROLES.AGENT}>Agent</option>
-                <option value={USER_ROLES.FREELANCER}>Freelancer</option>
-                <option value={USER_ROLES.INSTALLER}>Installer</option>
-                <option value={USER_ROLES.TECHNICIAN}>Technician</option>
-                <option value={USER_ROLES.CUSTOMER}>Customer</option>
-              </select>
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
           </div>
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50"
           >
-            Sign In
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
-            First time user?{' '}
+            Don't have an account?{' '}
             <button
-              onClick={() => setActiveMode('register-type')}
+              onClick={() => setActiveMode('signup')}
               className="text-blue-600 hover:text-blue-700 font-medium"
             >
-              Register Here
+              Sign Up
             </button>
           </p>
         </div>
@@ -579,9 +764,9 @@ const LoginScreen = () => {
         <div className="mt-8 p-4 bg-gray-50 rounded-lg">
           <h3 className="text-sm font-medium text-gray-900 mb-2">Demo Accounts:</h3>
           <div className="text-xs text-gray-600 space-y-1">
-            <p>• Admin: admin@greensolar.com</p>
-            <p>• Agent: agent@greensolar.com</p>
-            <p>• Customer: customer@example.com</p>
+            <p>• Admin: admin@greensolar.com (password: admin123)</p>
+            <p>• Agent: agent@greensolar.com (password: agent123)</p>
+            <p>• Customer: customer@example.com (password: customer123)</p>
           </div>
         </div>
       </div>

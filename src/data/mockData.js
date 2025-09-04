@@ -96,7 +96,7 @@ export const mockProjects = [
     },
     status: PROJECT_STATUS.IN_PROGRESS,
     pipelineStage: 'installation_complete',
-    installationApproved: false,
+    installationApproved: true,
     type: 'solar',
     location: 'Bandra West, Mumbai, Maharashtra',
     assignedTo: '4',

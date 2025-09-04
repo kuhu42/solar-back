@@ -58,7 +58,6 @@ const PendingApproval = ({ user }) => {
           
           <div className="flex flex-col sm:flex-row gap-3">
             <a
-              href="mailto:admin@solartech.com"
               href="mailto:admin@greensolar.com"
               className="flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
             >
@@ -66,7 +65,7 @@ const PendingApproval = ({ user }) => {
               Contact Admin
             </a>
             <a
-              href="tel:+1234567890"
+              href="tel:+912212345678"
               className="flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
             >
               <Phone className="w-4 h-4 mr-2" />
@@ -77,7 +76,22 @@ const PendingApproval = ({ user }) => {
 
         <div className="mt-8 pt-6 border-t border-gray-200">
           <button
-            onClick={() => window.location.reload()}
+            onClick={async () => {
+              try {
+                const session = await authService.getSession();
+                if (session?.user) {
+                  const profile = await dbService.getUserProfileById(session.user.id);
+                  if (profile && profile.status === 'active') {
+                    setCurrentUser(profile);
+                    showToast('Account approved! Welcome to GreenSolar!');
+                  } else {
+                    showToast('Account still pending approval');
+                  }
+                }
+              } catch (error) {
+                showToast('Error checking status');
+              }
+            }}
             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
           >
             Refresh Status

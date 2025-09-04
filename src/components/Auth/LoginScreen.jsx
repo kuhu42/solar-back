@@ -122,7 +122,6 @@ const LoginScreen = () => {
       } else {
         showToast(error.message || 'Signup failed', 'error');
       }
-      // Don't change activeMode on error - stay on signup form
     } finally {
       setLoading(false);
     }
@@ -221,63 +220,6 @@ const LoginScreen = () => {
     }
   };
 
-
-  // Add this function after handleProfessionalSubmit
-const createRealDemoUsers = async () => {
-    console.log('🚀 Starting demo user creation...');
-    
-    const demoUsers = [
-      {
-        email: 'admin@greensolar.com',
-        password: 'admin123',
-        userData: { name: 'John Admin', role: 'company', phone: '+1234567890' }
-      },
-      {
-        email: 'agent@greensolar.com', 
-        password: 'agent123',
-        userData: { name: 'Sarah Agent', role: 'agent', phone: '+1234567891' }
-      },
-      {
-        email: 'customer@example.com',
-        password: 'customer123',
-        userData: { name: 'David Customer', role: 'customer', phone: '+1234567895' }
-      }
-    ];
-
-    for (const user of demoUsers) {
-      try {
-        console.log(`Creating ${user.email}...`);
-        
-        // This creates a REAL user with proper UUID and password
-        const { data, error } = await authService.signUp(
-          user.email, 
-          user.password, 
-          user.userData
-        );
-        
-        if (data.user && !error) {
-          // Create matching database profile with REAL UUID
-          await dbService.createUserProfile({
-            id: data.user.id, // Real UUID from auth system
-            email: user.email,
-            name: user.userData.name,
-            role: user.userData.role,
-            phone: user.userData.phone,
-            status: 'active',
-            created_at: new Date().toISOString()
-          });
-          
-          console.log(`✅ Created real user: ${user.email}`);
-        }
-      } catch (error) {
-        console.error(`❌ Failed to create ${user.email}:`, error.message);
-      }
-    }
-    
-    console.log('✨ Demo user creation complete!');
-  };
-
-
   const FileUploadField = ({ label, field, formType = 'customer', accept = "image/*" }) => {
     const form = formType === 'customer' ? customerForm : professionalForm;
     const file = form[field];
@@ -321,11 +263,7 @@ const createRealDemoUsers = async () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <img 
-              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-              alt="GreenSolar Logo" 
-              className="h-16 w-auto mx-auto mb-4"
-            />
+            <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
             <p className="text-gray-600 mt-2">Sign up to get started</p>
           </div>
@@ -444,11 +382,7 @@ const createRealDemoUsers = async () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <img 
-              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-              alt="GreenSolar Logo" 
-              className="h-16 w-auto mx-auto mb-4"
-            />
+            <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900">Complete Your Registration</h1>
             <p className="text-gray-600 mt-2">Choose your role to continue</p>
           </div>
@@ -489,11 +423,7 @@ const createRealDemoUsers = async () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <img 
-              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-              alt="GreenSolar Logo" 
-              className="h-16 w-auto mx-auto mb-4"
-            />
+            <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900">Customer Registration</h1>
             <p className="text-gray-600 mt-2">Complete your customer profile</p>
           </div>
@@ -647,11 +577,7 @@ const createRealDemoUsers = async () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <img 
-              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-              alt="GreenSolar Logo" 
-              className="h-16 w-auto mx-auto mb-4"
-            />
+            <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900">Professional Registration</h1>
             <p className="text-gray-600 mt-2">Join our team of professionals</p>
           </div>
@@ -740,11 +666,7 @@ const createRealDemoUsers = async () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center mb-8">
-          <img 
-            src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-            alt="GreenSolar Logo" 
-            className="h-16 w-auto mx-auto mb-4"
-          />
+          <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-900">Welcome Back</h1>
           <p className="text-gray-600 mt-2">Sign in to your account</p>
         </div>
@@ -810,27 +732,6 @@ const createRealDemoUsers = async () => {
               Sign Up
             </button>
           </p>
-        </div>
-
-
-
-      {/* Add this button ABOVE the existing demo accounts section */}
-        <div className="mt-6 text-center">
-          <button
-            onClick={createRealDemoUsers}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium mb-4"
-          >
-            🔧 Create Real Demo Users
-          </button>
-        </div>
-
-        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-900 mb-2">Demo Accounts:</h3>
-          <div className="text-xs text-gray-600 space-y-1">
-            <p>• Admin: admin@greensolar.com (password: admin123)</p>
-            <p>• Agent: agent@greensolar.com (password: agent123)</p>
-            <p>• Customer: customer@example.com (password: customer123)</p>
-          </div>
         </div>
       </div>
     </div>

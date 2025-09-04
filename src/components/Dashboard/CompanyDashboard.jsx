@@ -581,10 +581,265 @@ const CompanyDashboard = () => {
               />
             </div>
           )}
+
+          {activeTab === 'complaints' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Complaint Management</h3>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">
+                    {pendingComplaints.length} pending assignment
+                  </span>
+                </div>
+              </div>
+              
+              {/* Pending Complaints */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">New Complaints Requiring Assignment</h4>
+                <div className="space-y-4">
+                  {pendingComplaints.map(complaint => (
+                    <div key={complaint.id} className="border border-red-200 bg-red-50 rounded-lg p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h5 className="font-medium text-gray-900">{complaint.title}</h5>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              complaint.priority === 'urgent'
+                                ? 'bg-red-100 text-red-800'
+                                : complaint.priority === 'high'
+                                ? 'bg-orange-100 text-orange-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {complaint.priority}
+                            </span>
+                          </div>
+                          <p className="text-gray-600 mb-2">{complaint.description}</p>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span>Customer: {complaint.customerName}</span>
+                            <span>Ref: {complaint.customerRefNumber}</span>
+                            <span>Date: {complaint.createdAt}</span>
+                            {complaint.serialNumber && (
+                              <span>Equipment: {complaint.serialNumber}</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedComplaint(complaint);
+                            setAssignmentData({ ...assignmentData, complaintId: complaint.id });
+                            setShowAssignModal(true);
+                          }}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                        >
+                          Assign Agent
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* All Complaints */}
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">All Complaints</h4>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Complaint
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Customer
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Assigned Team
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Priority
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {complaints.map(complaint => (
+                        <tr key={complaint.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{complaint.title}</div>
+                              <div className="text-sm text-gray-500">{complaint.createdAt}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm text-gray-900">{complaint.customerName}</div>
+                              <div className="text-sm text-gray-500">{complaint.customerRefNumber}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              complaint.workflowStatus === 'work_completed'
+                                ? 'bg-green-100 text-green-800'
+                                : complaint.workflowStatus === 'work_in_progress'
+                                ? 'bg-blue-100 text-blue-800'
+                                : complaint.workflowStatus === 'agent_assigned'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {complaint.workflowStatus?.replace('_', ' ') || 'New'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <div>
+                              {complaint.assignedAgentName && (
+                                <div>Agent: {complaint.assignedAgentName}</div>
+                              )}
+                              {complaint.assignedToName && (
+                                <div>Tech: {complaint.assignedToName}</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              complaint.priority === 'urgent'
+                                ? 'bg-red-100 text-red-800'
+                                : complaint.priority === 'high'
+                                ? 'bg-orange-100 text-orange-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {complaint.priority}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            {complaint.workflowStatus === 'complaint_logged' && (
+                              <button
+                                onClick={() => {
+                                  setSelectedComplaint(complaint);
+                                  setAssignmentData({ ...assignmentData, complaintId: complaint.id });
+                                  setShowAssignModal(true);
+                                }}
+                                className="text-blue-600 hover:text-blue-900"
+                              >
+                                Assign
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Assignment Modal */}
+      {showAssignModal && selectedComplaint && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Assign Complaint to Agent</h3>
+            
+            <div className="space-y-6">
+              {/* Complaint Details */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-2">{selectedComplaint.title}</h4>
+                <p className="text-sm text-gray-600 mb-2">{selectedComplaint.description}</p>
+                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                  <span>Customer: {selectedComplaint.customerName}</span>
+                  <span>Ref: {selectedComplaint.customerRefNumber}</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    selectedComplaint.priority === 'urgent'
+                      ? 'bg-red-100 text-red-800'
+                      : selectedComplaint.priority === 'high'
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {selectedComplaint.priority} priority
+                  </span>
+                </div>
+              </div>
+
+              {/* Agent Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assign to Agent *
+                </label>
+                <select
+                  value={assignmentData.agentId}
+                  onChange={(e) => setAssignmentData({...assignmentData, agentId: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select Agent</option>
+                  {users.filter(u => u.role === 'agent' && u.status === 'active').map(agent => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} - {agent.location}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Equipment Assignment */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assign Equipment (Optional)
+                </label>
+                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
+                  {inventory.filter(item => item.status === 'in_stock').map(item => (
+                    <label key={item.id} className="flex items-center p-3 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={assignmentData.equipmentIds.includes(item.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAssignmentData({
+                              ...assignmentData,
+                              equipmentIds: [...assignmentData.equipmentIds, item.id]
+                            });
+                          } else {
+                            setAssignmentData({
+                              ...assignmentData,
+                              equipmentIds: assignmentData.equipmentIds.filter(id => id !== item.id)
+                            });
+                          }
+                        }}
+                        className="mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{item.serialNumber}</div>
+                        <div className="text-sm text-gray-600">{item.companyName} - {item.model}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
     </div>
   );
 };
 
+              <div className="flex items-center space-x-3 pt-4">
+                <button
+                  onClick={handleAssignComplaint}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700"
+                >
+                  Assign Complaint
+                </button>
+                <button
+                  onClick={() => setShowAssignModal(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 export default CompanyDashboard;

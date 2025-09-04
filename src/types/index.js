@@ -63,6 +63,18 @@ export const COMPLAINT_STATUS = {
   CLOSED: 'closed'
 };
 
+export const PROJECT_WORKFLOW_STATUS = {
+  COMPLAINT_LOGGED: 'complaint_logged',
+  ADMIN_REVIEW: 'admin_review',
+  AGENT_ASSIGNED: 'agent_assigned',
+  INSTALLER_ASSIGNED: 'installer_assigned',
+  OTP_PENDING: 'otp_pending',
+  WORK_IN_PROGRESS: 'work_in_progress',
+  WORK_COMPLETED: 'work_completed',
+  CUSTOMER_VERIFIED: 'customer_verified',
+  CLOSED: 'closed'
+};
+
 export const INVOICE_STATUS = {
   DRAFT: 'draft',
   SENT: 'sent',

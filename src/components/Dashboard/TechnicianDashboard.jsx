@@ -688,39 +688,153 @@ const TechnicianDashboard = () => {
       )}
 
       {/* Complaint Resolution Modal */}
-      {selectedComplaint && (
+      {showCompletionModal && (selectedComplaint || selectedTaskForCompletion) && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Resolve Complaint</h3>
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Complete Work</h3>
             <div className="space-y-4">
+              {/* Work Details */}
               <div>
-                <h4 className="font-medium text-gray-900">{selectedComplaint.title}</h4>
-                <p className="text-sm text-gray-600">{selectedComplaint.description}</p>
-                <p className="text-sm text-gray-500 mt-1">Customer: {selectedComplaint.customerName}</p>
+                <h4 className="font-medium text-gray-900">
+                  {selectedComplaint?.title || selectedTaskForCompletion?.title}
+                </h4>
+                <p className="text-sm text-gray-600">
+                  {selectedComplaint?.description || selectedTaskForCompletion?.description}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Customer: {selectedComplaint?.customerName || selectedTaskForCompletion?.customerName}
+                </p>
+              </div>
+              
+              {/* Equipment Used */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Equipment Used (Serial Numbers)
+                </label>
+                <div className="space-y-2">
+                  {/* Pre-assigned equipment */}
+                  {(selectedComplaint?.assignedEquipment || []).map(equipId => {
+                    const equipment = inventory.find(i => i.id === equipId);
+                    return equipment ? (
+                      <label key={equipId} className="flex items-center p-2 bg-gray-50 rounded">
+                        <input
+                          type="checkbox"
+                          checked={equipmentUsed.includes(equipment.serialNumber)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEquipmentUsed(prev => [...prev, equipment.serialNumber]);
+                            } else {
+                              setEquipmentUsed(prev => prev.filter(s => s !== equipment.serialNumber));
+                            }
+                          }}
+                          className="mr-3"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{equipment.serialNumber}</div>
+                          <div className="text-sm text-gray-600">{equipment.model}</div>
+                        </div>
+                      </label>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+              
+              {/* Additional Equipment */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Additional Equipment Used (Optional)
+                </label>
+                <textarea
+                  value={additionalEquipment}
+                  onChange={(e) => setAdditionalEquipment(e.target.value)}
+                  rows={2}
+                  placeholder="Enter any additional equipment serial numbers or parts used..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              
+              {/* Completion Photos */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Completion Photos
+                </label>
+                <label className="flex items-center justify-center w-full px-4 py-3 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 border-2 border-dashed border-gray-300 cursor-pointer">
+                  <Camera className="w-5 h-5 mr-2" />
+                  Upload Photos ({completionPhotos.length} selected)
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files);
+                      if (files.length > 0) {
+                        setCompletionPhotos(prev => [...prev, ...files.map(f => f.name)]);
+                        showToast(`${files.length} photo(s) added`);
+                      }
+                    }}
+                  />
+                </label>
+                {completionPhotos.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {completionPhotos.map((photo, index) => (
+                      <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                        {photo}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Resolution Notes
+                  Work Completion Notes
                 </label>
                 <textarea
                   value={resolutionNotes}
                   onChange={(e) => setResolutionNotes(e.target.value)}
                   rows={4}
-                  placeholder="Describe how the issue was resolved..."
+                  placeholder="Describe the work completed, any issues found, and recommendations..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
                 />
               </div>
               
               <div className="flex items-center space-x-3 pt-4">
                 <button
-                  onClick={() => handleResolveComplaint(selectedComplaint.id)}
+                  onClick={() => {
+                    if (selectedComplaint) {
+                      handleResolveComplaint(selectedComplaint.id);
+                    } else if (selectedTaskForCompletion) {
+                      // Handle task completion
+                      dispatch({
+                        type: 'UPDATE_TASK_STATUS',
+                        payload: {
+                          taskId: selectedTaskForCompletion.id,
+                          status: 'completed',
+                          updates: {
+                            completionPhotos,
+                            notes: resolutionNotes,
+                            equipmentUsed,
+                            additionalEquipment,
+                            completedAt: new Date().toISOString()
+                          }
+                        }
+                      });
+                      showToast('Task completed successfully!');
+                      setShowCompletionModal(false);
+                    }
+                  }}
                   className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700"
                 >
-                  Mark Resolved
+                  Complete Work
                 </button>
                 <button
-                  onClick={() => setSelectedComplaint(null)}
+                  onClick={() => {
+                    setShowCompletionModal(false);
+                    setSelectedComplaint(null);
+                    setSelectedTaskForCompletion(null);
+                  }}
                   className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
                 >
                   Cancel

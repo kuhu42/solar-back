@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
 import { authService } from '../../lib/auth.js';
-import { dbService } from '../../lib/supabase.js';
 import { USER_ROLES } from '../../types/index.js';
 import { Sun, User, Lock, UserPlus, MapPin, Upload, Camera, Eye, EyeOff } from 'lucide-react';
 
@@ -117,11 +116,7 @@ const LoginScreen = () => {
       setActiveMode('register-type');
     } catch (error) {
       console.error('Signup error:', error);
-      if (error.message?.includes('User already registered')) {
-        showToast('This email is already registered. Please use the login form instead.', 'error');
-      } else {
-        showToast(error.message || 'Signup failed', 'error');
-      }
+      showToast(error.message || 'Signup failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -176,7 +171,16 @@ const LoginScreen = () => {
       const profileData = {
         role: 'customer',
         status: 'active', // Customers are auto-approved
-        location: customerForm.address
+        address: customerForm.address,
+        profile_data: {
+          serviceNumber: customerForm.serviceNumber,
+          moduleType: customerForm.moduleType,
+          kwCapacity: customerForm.kwCapacity,
+          houseType: customerForm.houseType,
+          floors: customerForm.floors,
+          remarks: customerForm.remarks,
+          coordinates: customerForm.coordinates
+        }
       };
 
       await authService.updateUserProfile(user.id, profileData);
@@ -205,8 +209,11 @@ const LoginScreen = () => {
         role: professionalForm.role,
         status: 'pending', // Professionals need admin approval
         education: professionalForm.education,
-        location: professionalForm.address,
-        bank_details: professionalForm.bankDetails
+        address: professionalForm.address,
+        bank_details: professionalForm.bankDetails,
+        profile_data: {
+          // Store additional professional data
+        }
       };
 
       await authService.updateUserProfile(user.id, profileData);
@@ -263,7 +270,11 @@ const LoginScreen = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+            <img 
+              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+              alt="GreenSolar Logo" 
+              className="h-16 w-auto mx-auto mb-4"
+            />
             <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
             <p className="text-gray-600 mt-2">Sign up to get started</p>
           </div>
@@ -382,7 +393,11 @@ const LoginScreen = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+            <img 
+              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+              alt="GreenSolar Logo" 
+              className="h-16 w-auto mx-auto mb-4"
+            />
             <h1 className="text-2xl font-bold text-gray-900">Complete Your Registration</h1>
             <p className="text-gray-600 mt-2">Choose your role to continue</p>
           </div>
@@ -423,7 +438,11 @@ const LoginScreen = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+            <img 
+              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+              alt="GreenSolar Logo" 
+              className="h-16 w-auto mx-auto mb-4"
+            />
             <h1 className="text-2xl font-bold text-gray-900">Customer Registration</h1>
             <p className="text-gray-600 mt-2">Complete your customer profile</p>
           </div>
@@ -577,7 +596,11 @@ const LoginScreen = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+            <img 
+              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+              alt="GreenSolar Logo" 
+              className="h-16 w-auto mx-auto mb-4"
+            />
             <h1 className="text-2xl font-bold text-gray-900">Professional Registration</h1>
             <p className="text-gray-600 mt-2">Join our team of professionals</p>
           </div>
@@ -666,7 +689,11 @@ const LoginScreen = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center mb-8">
-          <Sun className="h-16 w-16 text-blue-600 mx-auto mb-4" />
+          <img 
+            src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+            alt="GreenSolar Logo" 
+            className="h-16 w-auto mx-auto mb-4"
+          />
           <h1 className="text-3xl font-bold text-gray-900">Welcome Back</h1>
           <p className="text-gray-600 mt-2">Sign in to your account</p>
         </div>
@@ -732,6 +759,15 @@ const LoginScreen = () => {
               Sign Up
             </button>
           </p>
+        </div>
+
+        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+          <h3 className="text-sm font-medium text-gray-900 mb-2">Demo Accounts:</h3>
+          <div className="text-xs text-gray-600 space-y-1">
+            <p>• Admin: admin@greensolar.com (password: admin123)</p>
+            <p>• Agent: agent@greensolar.com (password: agent123)</p>
+            <p>• Customer: customer@example.com (password: customer123)</p>
+          </div>
         </div>
       </div>
     </div>

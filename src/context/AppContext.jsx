@@ -1,6 +1,18 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { dbService } from '../lib/supabase.js';
+import { dbService, supabase } from '../lib/supabase.js';
 import { authService } from '../lib/auth.js';
+import { USER_STATUS } from '../types/index.js';
+import { 
+  mockUsers, 
+  mockProjects, 
+  mockTasks, 
+  mockAttendance, 
+  mockInventory, 
+  mockLeads, 
+  mockComplaints, 
+  mockInvoices, 
+  mockNotifications 
+} from '../data/mockData.js';
 
 const AppContext = createContext();
 
@@ -15,10 +27,8 @@ const initialState = {
   complaints: [],
   invoices: [],
   notifications: [],
-  commissions: [],
   loading: false,
-  error: null,
-  realTimeSubscriptions: []
+  error: null
 };
 
 function appReducer(state, action) {
@@ -53,14 +63,167 @@ function appReducer(state, action) {
     case 'SET_NOTIFICATIONS':
       return { ...state, notifications: action.payload };
     
-    case 'SET_COMMISSIONS':
-      return { ...state, commissions: action.payload };
-    
     case 'LOGOUT':
-      return { 
-        ...state, 
-        currentUser: null,
-        realTimeSubscriptions: []
+      return { ...state, currentUser: null };
+    
+    case 'UPDATE_USER_STATUS':
+      return {
+        ...state,
+        users: state.users.map(user =>
+          user.id === action.payload.userId
+            ? { ...user, status: action.payload.status }
+            : user
+        )
+      };
+    
+    case 'UPDATE_USER_ROLE_AND_STATUS':
+      return {
+        ...state,
+        users: state.users.map(user =>
+          user.id === action.payload.userId
+            ? { ...user, role: action.payload.role, status: action.payload.status }
+            : user
+        )
+      };
+    
+    case 'ADD_ATTENDANCE':
+      return {
+        ...state,
+        attendance: [...state.attendance, action.payload]
+      };
+    
+    case 'UPDATE_ATTENDANCE':
+      return {
+        ...state,
+        attendance: state.attendance.map(att =>
+          att.id === action.payload.id ? { ...att, ...action.payload } : att
+        )
+      };
+    
+    case 'UPDATE_PROJECT_STATUS':
+      return {
+        ...state,
+        projects: state.projects.map(project =>
+          project.id === action.payload.projectId
+            ? { ...project, status: action.payload.status }
+            : project
+        )
+      };
+    
+    case 'UPDATE_PROJECT_PIPELINE':
+      return {
+        ...state,
+        projects: state.projects.map(project =>
+          project.id === action.payload.projectId
+            ? { ...project, pipelineStage: action.payload.pipelineStage }
+            : project
+        )
+      };
+    
+    case 'ASSIGN_TASK':
+      return {
+        ...state,
+        tasks: state.tasks.map(task =>
+          task.id === action.payload.taskId
+            ? { ...task, assignedTo: action.payload.assignedTo, assignedToName: action.payload.assignedToName }
+            : task
+        )
+      };
+    
+    case 'UPDATE_TASK_STATUS':
+      return {
+        ...state,
+        tasks: state.tasks.map(task =>
+          task.id === action.payload.taskId
+            ? { ...task, status: action.payload.status, ...action.payload.updates }
+            : task
+        )
+      };
+    
+    case 'UPDATE_INVENTORY_STATUS':
+      return {
+        ...state,
+        inventory: state.inventory.map(item =>
+          item.serialNumber === action.payload.serialNumber
+            ? { ...item, status: action.payload.status, ...action.payload.updates }
+            : item
+        )
+      };
+    
+    case 'ADD_LEAD':
+      return {
+        ...state,
+        leads: [...state.leads, action.payload]
+      };
+    
+    case 'UPDATE_LEAD':
+      return {
+        ...state,
+        leads: state.leads.map(lead =>
+          lead.id === action.payload.id ? { ...lead, ...action.payload.updates } : lead
+        )
+      };
+    
+    case 'ADD_COMPLAINT':
+      return {
+        ...state,
+        complaints: [...state.complaints, action.payload]
+      };
+    
+    case 'ADD_USER':
+      return {
+        ...state,
+        users: [...state.users, action.payload]
+      };
+    
+    case 'UPDATE_PROJECT':
+      return {
+        ...state,
+        projects: state.projects.map(project =>
+          project.id === action.payload.id ? { ...project, ...action.payload.updates } : project
+        )
+      };
+    
+    case 'UPDATE_COMPLAINT_STATUS':
+      return {
+        ...state,
+        complaints: state.complaints.map(complaint =>
+          complaint.id === action.payload.complaintId
+            ? { ...complaint, status: action.payload.status }
+            : complaint
+        )
+      };
+    
+    case 'ADD_INVOICE':
+      return {
+        ...state,
+        invoices: [...state.invoices, action.payload]
+      };
+    
+    case 'UPDATE_INVOICE_STATUS':
+      return {
+        ...state,
+        invoices: state.invoices.map(invoice =>
+          invoice.id === action.payload.invoiceId
+            ? { ...invoice, status: action.payload.status }
+            : invoice
+        )
+      };
+    
+    case 'ADD_NOTIFICATION':
+      return {
+        ...state,
+        notifications: [action.payload, ...state.notifications]
+      };
+    
+    case 'MARK_NOTIFICATION_READ':
+      return {
+        ...state,
+        notifications: state.notifications.map(notif =>
+          notif.id === action.payload.notificationId
+            ? { ...notif, read: true }
+            : notif
+        )
       };
     
     case 'SET_LOADING':
@@ -68,63 +231,6 @@ function appReducer(state, action) {
     
     case 'SET_ERROR':
       return { ...state, error: action.payload };
-    
-    case 'ADD_SUBSCRIPTION':
-      return { 
-        ...state, 
-        realTimeSubscriptions: [...state.realTimeSubscriptions, action.payload] 
-      };
-    
-    case 'CLEAR_SUBSCRIPTIONS':
-      return { ...state, realTimeSubscriptions: [] };
-    
-    // Real-time updates
-    case 'REALTIME_UPDATE':
-      const { table, eventType, record } = action.payload;
-      
-      switch (table) {
-        case 'projects':
-          if (eventType === 'INSERT') {
-            return { ...state, projects: [record, ...state.projects] };
-          } else if (eventType === 'UPDATE') {
-            return {
-              ...state,
-              projects: state.projects.map(p => p.id === record.id ? record : p)
-            };
-          } else if (eventType === 'DELETE') {
-            return {
-              ...state,
-              projects: state.projects.filter(p => p.id !== record.id)
-            };
-          }
-          break;
-        
-        case 'tasks':
-          if (eventType === 'INSERT') {
-            return { ...state, tasks: [record, ...state.tasks] };
-          } else if (eventType === 'UPDATE') {
-            return {
-              ...state,
-              tasks: state.tasks.map(t => t.id === record.id ? record : t)
-            };
-          }
-          break;
-        
-        case 'notifications':
-          if (eventType === 'INSERT') {
-            return { ...state, notifications: [record, ...state.notifications] };
-          } else if (eventType === 'UPDATE') {
-            return {
-              ...state,
-              notifications: state.notifications.map(n => n.id === record.id ? record : n)
-            };
-          }
-          break;
-        
-        default:
-          return state;
-      }
-      return state;
     
     default:
       return state;
@@ -137,17 +243,7 @@ export function AppProvider({ children }) {
   // Initialize auth and load data
   useEffect(() => {
     initializeAuth();
-    loadData();
-    setupRealTimeSubscriptions();
-
-    return () => {
-      // Cleanup subscriptions
-      state.realTimeSubscriptions.forEach(sub => {
-        if (sub && typeof sub.unsubscribe === 'function') {
-          sub.unsubscribe();
-        }
-      });
-    };
+    loadAllData();
   }, []);
 
   const initializeAuth = async () => {
@@ -155,7 +251,7 @@ export function AppProvider({ children }) {
       // Check for existing session
       const session = await authService.getSession();
       if (session?.user) {
-        const profile = await authService.getUserProfileById(session.user.id);
+        const profile = await dbService.getUserProfileById(session.user.id);
         if (profile) {
           dispatch({ type: 'SET_CURRENT_USER', payload: profile });
         }
@@ -164,124 +260,87 @@ export function AppProvider({ children }) {
       // Listen for auth changes
       authService.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          const profile = await authService.getUserProfileById(session.user.id);
+          const profile = await dbService.getUserProfileById(session.user.id);
           if (profile) {
             dispatch({ type: 'SET_CURRENT_USER', payload: profile });
-            
-            // Track login event
-            await dbService.trackEvent('user_login', {
-              userId: profile.id,
-              role: profile.role
-            });
           }
         } else if (event === 'SIGNED_OUT') {
           dispatch({ type: 'LOGOUT' });
-          dispatch({ type: 'CLEAR_SUBSCRIPTIONS' });
         }
       });
     } catch (error) {
       console.error('Auth initialization error:', error);
-      dispatch({ type: 'SET_ERROR', payload: error.message });
     }
   };
-
-  const loadData = async () => {
+  const loadAllData = async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      const [
-        users, projects, tasks, attendance, inventory, 
-        leads, complaints, invoices, commissions
-      ] = await Promise.all([
-        dbService.getUserProfiles(),
-        dbService.getProjects(),
-        dbService.getTasks(),
-        dbService.getAttendance(),
-        dbService.getInventory(),
-        dbService.getLeads(),
-        dbService.getComplaints(),
-        dbService.getInvoices(),
-        dbService.getCommissions()
-      ]);
+      // Try to load from database first, fallback to mock data
+      try {
+        const [users, projects, tasks, attendance, inventory, leads, complaints, invoices] = await Promise.all([
+          dbService.getUserProfiles(),
+          dbService.getProjects(),
+          dbService.getTasks(),
+          dbService.getAttendance(),
+          dbService.getInventory(),
+          dbService.getLeads(),
+          dbService.getComplaints(),
+          dbService.getInvoices()
+        ]);
 
-      dispatch({ type: 'SET_USERS', payload: users });
-      dispatch({ type: 'SET_PROJECTS', payload: projects });
-      dispatch({ type: 'SET_TASKS', payload: tasks });
-      dispatch({ type: 'SET_ATTENDANCE', payload: attendance });
-      dispatch({ type: 'SET_INVENTORY', payload: inventory });
-      dispatch({ type: 'SET_LEADS', payload: leads });
-      dispatch({ type: 'SET_COMPLAINTS', payload: complaints });
-      dispatch({ type: 'SET_INVOICES', payload: invoices });
-      dispatch({ type: 'SET_COMMISSIONS', payload: commissions });
-
-      // Load notifications for current user
-      if (state.currentUser) {
-        const notifications = await dbService.getNotifications(state.currentUser.id);
-        dispatch({ type: 'SET_NOTIFICATIONS', payload: notifications });
+        // Use database data if available, otherwise use mock data
+        dispatch({ type: 'SET_USERS', payload: users.length > 0 ? users : mockUsers });
+        dispatch({ type: 'SET_PROJECTS', payload: projects.length > 0 ? projects : mockProjects });
+        dispatch({ type: 'SET_TASKS', payload: tasks.length > 0 ? tasks : mockTasks });
+        dispatch({ type: 'SET_ATTENDANCE', payload: attendance.length > 0 ? attendance : mockAttendance });
+        dispatch({ type: 'SET_INVENTORY', payload: inventory.length > 0 ? inventory : mockInventory });
+        dispatch({ type: 'SET_LEADS', payload: leads.length > 0 ? leads : mockLeads });
+        dispatch({ type: 'SET_COMPLAINTS', payload: complaints.length > 0 ? complaints : mockComplaints });
+        dispatch({ type: 'SET_INVOICES', payload: invoices.length > 0 ? invoices : mockInvoices });
+        dispatch({ type: 'SET_NOTIFICATIONS', payload: mockNotifications });
+        
+      } catch (dbError) {
+        console.log('Database not available, using mock data:', dbError);
+        // Fallback to mock data if database fails
+        dispatch({ type: 'SET_USERS', payload: mockUsers });
+        dispatch({ type: 'SET_PROJECTS', payload: mockProjects });
+        dispatch({ type: 'SET_TASKS', payload: mockTasks });
+        dispatch({ type: 'SET_ATTENDANCE', payload: mockAttendance });
+        dispatch({ type: 'SET_INVENTORY', payload: mockInventory });
+        dispatch({ type: 'SET_LEADS', payload: mockLeads });
+        dispatch({ type: 'SET_COMPLAINTS', payload: mockComplaints });
+        dispatch({ type: 'SET_INVOICES', payload: mockInvoices });
+        dispatch({ type: 'SET_NOTIFICATIONS', payload: mockNotifications });
       }
       
     } catch (error) {
       console.error('Error loading data:', error);
+      // Final fallback to mock data
+      dispatch({ type: 'SET_USERS', payload: mockUsers });
+      dispatch({ type: 'SET_PROJECTS', payload: mockProjects });
+      dispatch({ type: 'SET_TASKS', payload: mockTasks });
+      dispatch({ type: 'SET_ATTENDANCE', payload: mockAttendance });
+      dispatch({ type: 'SET_INVENTORY', payload: mockInventory });
+      dispatch({ type: 'SET_LEADS', payload: mockLeads });
+      dispatch({ type: 'SET_COMPLAINTS', payload: mockComplaints });
+      dispatch({ type: 'SET_INVOICES', payload: mockInvoices });
+      dispatch({ type: 'SET_NOTIFICATIONS', payload: mockNotifications });
       dispatch({ type: 'SET_ERROR', payload: error.message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
-  const setupRealTimeSubscriptions = () => {
-    // Subscribe to projects changes
-    const projectsSub = dbService.subscribeToTable('projects', (payload) => {
-      dispatch({
-        type: 'REALTIME_UPDATE',
-        payload: {
-          table: 'projects',
-          eventType: payload.eventType,
-          record: payload.new || payload.old
-        }
-      });
-    });
-
-    // Subscribe to tasks changes
-    const tasksSub = dbService.subscribeToTable('tasks', (payload) => {
-      dispatch({
-        type: 'REALTIME_UPDATE',
-        payload: {
-          table: 'tasks',
-          eventType: payload.eventType,
-          record: payload.new || payload.old
-        }
-      });
-    });
-
-    // Subscribe to notifications for current user
-    if (state.currentUser) {
-      const notificationsSub = dbService.subscribeToTable('notifications', (payload) => {
-        if (payload.new?.user_id === state.currentUser.id) {
-          dispatch({
-            type: 'REALTIME_UPDATE',
-            payload: {
-              table: 'notifications',
-              eventType: payload.eventType,
-              record: payload.new || payload.old
-            }
-          });
-        }
-      }, { filter: `user_id=eq.${state.currentUser.id}` });
-
-      dispatch({ type: 'ADD_SUBSCRIPTION', payload: notificationsSub });
-    }
-
-    dispatch({ type: 'ADD_SUBSCRIPTION', payload: projectsSub });
-    dispatch({ type: 'ADD_SUBSCRIPTION', payload: tasksSub });
-  };
-
-  // Authentication methods
   const setCurrentUser = (user) => {
     dispatch({ type: 'SET_CURRENT_USER', payload: user });
   };
 
   const logout = async () => {
     try {
+
+
+
       await authService.signOut();
       dispatch({ type: 'LOGOUT' });
     } catch (error) {
@@ -289,73 +348,23 @@ export function AppProvider({ children }) {
     }
   };
 
-  // CRUD operations
-  const addLead = async (leadData) => {
+  const registerUser = async (userData, userType) => {
     try {
-      const newLead = await dbService.createLead(leadData);
-      return newLead;
-    } catch (error) {
-      console.error('Error adding lead:', error);
-      throw error;
-    }
-  };
+      const newUser = {
+        ...userData,
+        status: USER_STATUS.PENDING,
+        role: userType === 'customer' ? 'customer' : userData.role
+      };
 
-  const updateLead = async (id, updates) => {
-    try {
-      const updatedLead = await dbService.updateLead(id, updates);
-      return updatedLead;
+      const createdUser = await dbService.createUser(newUser);
+      
+      // Refresh users list
+      const users = await dbService.getUsers();
+      dispatch({ type: 'SET_USERS', payload: users });
+      
+      return createdUser;
     } catch (error) {
-      console.error('Error updating lead:', error);
-      throw error;
-    }
-  };
-
-  const addComplaint = async (complaintData) => {
-    try {
-      const newComplaint = await dbService.createComplaint(complaintData);
-      return newComplaint;
-    } catch (error) {
-      console.error('Error adding complaint:', error);
-      throw error;
-    }
-  };
-
-  const updateProject = async (id, updates) => {
-    try {
-      const updatedProject = await dbService.updateProject(id, updates);
-      return updatedProject;
-    } catch (error) {
-      console.error('Error updating project:', error);
-      throw error;
-    }
-  };
-
-  const updateTask = async (id, updates) => {
-    try {
-      const updatedTask = await dbService.updateTask(id, updates);
-      return updatedTask;
-    } catch (error) {
-      console.error('Error updating task:', error);
-      throw error;
-    }
-  };
-
-  const addAttendance = async (attendanceData) => {
-    try {
-      const newAttendance = await dbService.createAttendance(attendanceData);
-      return newAttendance;
-    } catch (error) {
-      console.error('Error adding attendance:', error);
-      throw error;
-    }
-  };
-
-  const updateAttendance = async (id, updates) => {
-    try {
-      const updatedAttendance = await dbService.updateAttendance(id, updates);
-      return updatedAttendance;
-    } catch (error) {
-      console.error('Error updating attendance:', error);
+      console.error('Registration error:', error);
       throw error;
     }
   };
@@ -377,54 +386,204 @@ export function AppProvider({ children }) {
     }
   };
 
-  // File upload
-  const uploadFile = async (file, metadata) => {
+  const addLead = async (leadData) => {
     try {
-      return await dbService.uploadDocument(file, metadata);
+      await dbService.createLead(leadData);
+      
+      // Refresh leads list
+      const leads = await dbService.getLeads();
+      dispatch({ type: 'SET_LEADS', payload: leads });
+      
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error adding lead:', error);
       throw error;
     }
   };
 
-  // Analytics tracking
-  const trackEvent = async (eventType, eventData = {}) => {
-    await dbService.trackEvent(eventType, {
-      ...eventData,
-      userId: state.currentUser?.id
-    });
+  const updateLead = async (id, updates) => {
+    try {
+      await dbService.updateLead(id, updates);
+      
+      // Refresh leads list
+      const leads = await dbService.getLeads();
+      dispatch({ type: 'SET_LEADS', payload: leads });
+      
+    } catch (error) {
+      console.error('Error updating lead:', error);
+      throw error;
+    }
   };
 
+  const addComplaint = async (complaintData) => {
+    try {
+      await dbService.createComplaint(complaintData);
+      
+      // Refresh complaints list
+      const complaints = await dbService.getComplaints();
+      dispatch({ type: 'SET_COMPLAINTS', payload: complaints });
+      
+    } catch (error) {
+      console.error('Error adding complaint:', error);
+      throw error;
+    }
+  };
+
+  const updateComplaint = async (id, updates) => {
+    try {
+      await dbService.updateComplaint(id, updates);
+      
+      // Refresh complaints list
+      const complaints = await dbService.getComplaints();
+      dispatch({ type: 'SET_COMPLAINTS', payload: complaints });
+      
+    } catch (error) {
+      console.error('Error updating complaint:', error);
+      throw error;
+    }
+  };
+
+  const updateProject = async (id, updates) => {
+    try {
+      await dbService.updateProject(id, updates);
+      
+      // Refresh projects list
+      const projects = await dbService.getProjects();
+      dispatch({ type: 'SET_PROJECTS', payload: projects });
+      
+    } catch (error) {
+      console.error('Error updating project:', error);
+      throw error;
+    }
+  };
+
+  const updateTask = async (id, updates) => {
+    try {
+      await dbService.updateTask(id, updates);
+      
+      // Refresh tasks list
+      const tasks = await dbService.getTasks();
+      dispatch({ type: 'SET_TASKS', payload: tasks });
+      
+    } catch (error) {
+      console.error('Error updating task:', error);
+      throw error;
+    }
+  };
+
+  const addAttendance = async (attendanceData) => {
+    try {
+      await dbService.createAttendance(attendanceData);
+      
+      // Refresh attendance list
+      const attendance = await dbService.getAttendance();
+      dispatch({ type: 'SET_ATTENDANCE', payload: attendance });
+      
+    } catch (error) {
+      console.error('Error adding attendance:', error);
+      throw error;
+    }
+  };
+
+  const updateAttendance = async (id, updates) => {
+    try {
+      await dbService.updateAttendance(id, updates);
+      
+      // Refresh attendance list
+      const attendance = await dbService.getAttendance();
+      dispatch({ type: 'SET_ATTENDANCE', payload: attendance });
+      
+    } catch (error) {
+      console.error('Error updating attendance:', error);
+      throw error;
+    }
+  };
+
+  const updateInventory = async (serialNumber, updates) => {
+    try {
+      await dbService.updateInventory(serialNumber, updates);
+      
+      // Refresh inventory list
+      const inventory = await dbService.getInventory();
+      dispatch({ type: 'SET_INVENTORY', payload: inventory });
+      
+    } catch (error) {
+      console.error('Error updating inventory:', error);
+      throw error;
+    }
+  };
+
+  // Legacy dispatch actions for backward compatibility
+  const legacyDispatch = (action) => {
+    switch (action.type) {
+      case 'UPDATE_USER_STATUS':
+        updateUserStatus(action.payload.userId, action.payload.status, action.payload.role);
+        break;
+      case 'ADD_LEAD':
+        addLead(action.payload);
+        break;
+      case 'UPDATE_LEAD':
+        updateLead(action.payload.id, action.payload.updates);
+        break;
+      case 'ADD_COMPLAINT':
+        addComplaint(action.payload);
+        break;
+      case 'UPDATE_COMPLAINT_STATUS':
+        updateComplaint(action.payload.complaintId, { status: action.payload.status });
+        break;
+      case 'UPDATE_PROJECT_STATUS':
+        updateProject(action.payload.projectId, { status: action.payload.status });
+        break;
+      case 'UPDATE_PROJECT_PIPELINE':
+        updateProject(action.payload.projectId, { pipeline_stage: action.payload.pipelineStage });
+        break;
+      case 'UPDATE_PROJECT':
+        updateProject(action.payload.id, action.payload.updates);
+        break;
+      case 'UPDATE_TASK_STATUS':
+        updateTask(action.payload.taskId, { status: action.payload.status, ...action.payload.updates });
+        break;
+      case 'ADD_ATTENDANCE':
+        addAttendance(action.payload);
+        break;
+      case 'UPDATE_ATTENDANCE':
+        updateAttendance(action.payload.id, action.payload);
+        break;
+      case 'UPDATE_INVENTORY_STATUS':
+        updateInventory(action.payload.serialNumber, { status: action.payload.status, ...action.payload.updates });
+        break;
+      default:
+        dispatch(action);
+    }
+  };
+
+  const login_old = (email, role) => {
+    const user = state.users.find(u => u.email === email || u.role === role);
+    if (user) {
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      dispatch({ type: 'SET_CURRENT_USER', payload: user });
+      return user;
+    }
+    return null;
+  };
+
+
   const showToast = (message, type = 'success') => {
+    // In a real app, this would trigger a toast notification
     console.log(`Toast: ${message} (${type})`);
-    // In production, integrate with your toast library
+    // For demo purposes, we'll use a simple alert
     alert(`${type.toUpperCase()}: ${message}`);
   };
 
   const value = {
     ...state,
-    dispatch,
-    
-    // Auth methods
+    dispatch: legacyDispatch,
     setCurrentUser,
-    logout,
-    
-    // Data methods
-    addLead,
-    updateLead,
-    addComplaint,
-    updateProject,
-    updateTask,
-    addAttendance,
-    updateAttendance,
+    registerUser,
     updateUserStatus,
-    uploadFile,
-    trackEvent,
-    
-    // Utilities
+    logout,
     showToast,
-    authService,
-    dbService
+    loadAllData,
+    authService
   };
 
   return (

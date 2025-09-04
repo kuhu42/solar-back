@@ -97,5 +97,25 @@ export const authService = {
       console.error('Update profile error:', error);
       throw error;
     }
+  },
+
+  // Create user profile (for new registrations)
+  async createUserProfile(userId, profileData) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .insert([{
+          id: userId,
+          ...profileData
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Create profile error:', error);
+      throw error;
+    }
   }
 };

@@ -18,10 +18,13 @@ import {
   Package,
   MessageSquare,
   TrendingUp
+  ToggleLeft,
+  ToggleRight,
+  Zap
 } from 'lucide-react';
 
 const AppLayout = ({ children }) => {
-  const { currentUser, logout, notifications } = useApp();
+  const { currentUser, logout, notifications, isLiveMode, toggleMode } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
@@ -154,6 +157,27 @@ const AppLayout = ({ children }) => {
               </div>
 
               <div className="flex items-center space-x-4">
+                {/* Mode Toggle */}
+                <div className="flex items-center space-x-2 px-3 py-1 bg-gray-100 rounded-lg">
+                  <span className={`text-xs font-medium ${!isLiveMode ? 'text-blue-600' : 'text-gray-500'}`}>
+                    Demo
+                  </span>
+                  <button
+                    onClick={() => toggleMode(!isLiveMode)}
+                    className="relative"
+                  >
+                    {isLiveMode ? (
+                      <ToggleRight className="w-6 h-6 text-green-600" />
+                    ) : (
+                      <ToggleLeft className="w-6 h-6 text-gray-400" />
+                    )}
+                  </button>
+                  <span className={`text-xs font-medium ${isLiveMode ? 'text-green-600' : 'text-gray-500'}`}>
+                    Live
+                  </span>
+                  {isLiveMode && <Zap className="w-4 h-4 text-green-600" />}
+                </div>
+
                 {/* Notifications */}
                 <button className="relative p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 rounded-lg">
                   <Bell className="w-6 h-6" />

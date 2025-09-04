@@ -1,33 +1,40 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
 import { authService } from '../../lib/auth.js';
-import { dbService } from '../../lib/supabase.js';
 import { USER_ROLES } from '../../types/index.js';
-import { Sun, User, Lock, UserPlus, MapPin, Upload, Camera, Eye, EyeOff } from 'lucide-react';
+import { Sun, User, Lock, UserPlus, MapPin, Upload, Camera, Eye, EyeOff, Smartphone, ToggleLeft, ToggleRight } from 'lucide-react';
 
 const LoginScreen = () => {
-  const { setCurrentUser, showToast } = useApp();
-  const [activeMode, setActiveMode] = useState('login'); // 'login', 'signup', 'register-type', 'customer-form', 'professional-form'
-  const [selectedRole, setSelectedRole] = useState('');
+  const { setCurrentUser, showToast, isLiveMode, toggleMode, loginDemo, loginLive, createDemoUsers } = useApp();
+  const [activeMode, setActiveMode] = useState('login');
+  const [loginType, setLoginType] = useState('demo'); // 'demo' or 'live'
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [creatingDemoUsers, setCreatingDemoUsers] = useState(false);
   
-  // Login form
-  const [loginForm, setLoginForm] = useState({
+  // Login forms
+  const [demoLoginForm, setDemoLoginForm] = useState({
+    selectedUser: 'admin@greensolar.com'
+  });
+
+  const [liveLoginForm, setLiveLoginForm] = useState({
     email: '',
     password: ''
   });
 
-  // Signup form
-  const [signupForm, setSignupForm] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    name: '',
-    phone: ''
+  const [phoneLoginForm, setPhoneLoginForm] = useState({
+    phone: '',
+    otp: '',
+    step: 'phone' // 'phone' or 'otp'
   });
 
-  // Customer registration form
+  // Registration forms
+  const [signupForm, setSignupForm] = useState({
+    phone: '',
+    name: '',
+    role: 'customer'
+  });
+
   const [customerForm, setCustomerForm] = useState({
     serviceNumber: '',
     address: '',
@@ -36,131 +43,119 @@ const LoginScreen = () => {
     kwCapacity: '',
     houseType: '',
     floors: '',
-    remarks: '',
-    customerPhoto: null,
-    signPhoto: null,
-    aadharPhoto: null,
-    panPhoto: null,
-    bankBookPhoto: null
+    remarks: ''
   });
 
-  // Professional registration form
   const [professionalForm, setProfessionalForm] = useState({
     role: '',
     education: '',
     address: '',
-    photo: null,
-    aadharPhoto: null,
-    panPhoto: null,
     bankDetails: ''
   });
 
-  const [gettingLocation, setGettingLocation] = useState(false);
+  const demoUsers = [
+    { email: 'admin@greensolar.com', name: 'John Admin', role: 'Company Admin' },
+    { email: 'agent@greensolar.com', name: 'Sarah Agent', role: 'Field Agent' },
+    { email: 'freelancer@greensolar.com', name: 'Mike Freelancer', role: 'Freelancer' },
+    { email: 'installer@greensolar.com', name: 'Tom Installer', role: 'Installer' },
+    { email: 'tech@greensolar.com', name: 'Lisa Technician', role: 'Technician' },
+    { email: 'customer@example.com', name: 'David Customer', role: 'Customer' }
+  ];
 
-  const handleLogin = async (e) => {
+  const handleDemoLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { user } = await authService.signIn(loginForm.email, loginForm.password);
-      
+      const user = loginDemo(demoLoginForm.selectedUser);
       if (user) {
-        // Get user profile from database
-        const profile = await dbService.getUserProfileById(user.id);
-        
-        if (profile) {
-          if (profile.status === 'rejected') {
-            showToast('Your account has been rejected. Please contact support.', 'error');
-            await authService.signOut();
-            return;
-          }
-          
-          setCurrentUser(profile);
-          showToast('Login successful!');
-        } else {
-          showToast('User profile not found', 'error');
-        }
+        setCurrentUser(user);
+        showToast(`Logged in as ${user.name} (Demo Mode)`);
+      } else {
+        showToast('Demo user not found', 'error');
       }
     } catch (error) {
-      console.error('Login error:', error);
+      showToast('Demo login failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLiveLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const user = await loginLive(liveLoginForm.email, liveLoginForm.password);
+      if (user) {
+        showToast(`Welcome back, ${user.name}!`);
+      }
+    } catch (error) {
       showToast(error.message || 'Login failed', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSignup = async (e) => {
+  const handlePhoneLogin = async (e) => {
     e.preventDefault();
-    
-    if (signupForm.password !== signupForm.confirmPassword) {
-      showToast('Passwords do not match', 'error');
-      return;
-    }
-
-    if (signupForm.password.length < 6) {
-      showToast('Password must be at least 6 characters', 'error');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const userData = {
-        name: signupForm.name,
-        phone: signupForm.phone,
-        role: 'customer' // Default role, will be updated in form
-      };
-
-      await authService.signUp(signupForm.email, signupForm.password, userData);
-      
-      showToast('Account created! Please check your email for verification.');
-      setActiveMode('register-type');
-    } catch (error) {
-      console.error('Signup error:', error);
-      if (error.message?.includes('User already registered')) {
-        showToast('This email is already registered. Please use the login form instead.', 'error');
+      if (phoneLoginForm.step === 'phone') {
+        // Send OTP (in demo, just move to OTP step)
+        setPhoneLoginForm(prev => ({ ...prev, step: 'otp' }));
+        showToast('OTP sent to your phone (Demo: use 123456)');
       } else {
-        showToast(error.message || 'Signup failed', 'error');
+        // Verify OTP
+        const result = await authService.verifyOTP(phoneLoginForm.phone, phoneLoginForm.otp);
+        if (result.verified) {
+          setCurrentUser(result.user);
+          showToast(`Welcome, ${result.user.name}!`);
+        }
       }
-      // Don't change activeMode on error - stay on signup form
+    } catch (error) {
+      showToast(error.message || 'Authentication failed', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGetLocation = () => {
-    setGettingLocation(true);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCustomerForm(prev => ({
-            ...prev,
-            coordinates: {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude
-            }
-          }));
-          setGettingLocation(false);
-          showToast('Location captured successfully!');
-        },
-        (error) => {
-          setGettingLocation(false);
-          showToast('Unable to get location. Please enable location services.', 'error');
-        }
-      );
-    } else {
-      setGettingLocation(false);
-      showToast('Geolocation is not supported by this browser.', 'error');
+  const handleCreateDemoUsers = async () => {
+    setCreatingDemoUsers(true);
+    try {
+      const results = await createDemoUsers();
+      const successCount = results.filter(r => r.success).length;
+      showToast(`Created ${successCount} demo users successfully!`);
+    } catch (error) {
+      showToast('Error creating demo users', 'error');
+    } finally {
+      setCreatingDemoUsers(false);
     }
   };
 
-  const handleFileUpload = (field, file, formType = 'customer') => {
-    if (formType === 'customer') {
-      setCustomerForm(prev => ({ ...prev, [field]: file }));
-    } else {
-      setProfessionalForm(prev => ({ ...prev, [field]: file }));
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const result = await authService.signUpWithPhone(signupForm.phone, {
+        name: signupForm.name,
+        role: signupForm.role
+      });
+      
+      showToast('Account created! Please complete your registration.');
+      
+      if (signupForm.role === 'customer') {
+        setActiveMode('customer-form');
+      } else {
+        setActiveMode('professional-form');
+      }
+    } catch (error) {
+      showToast(error.message || 'Signup failed', 'error');
+    } finally {
+      setLoading(false);
     }
-    showToast(`${file.name} uploaded successfully!`);
   };
 
   const handleCustomerSubmit = async (e) => {
@@ -174,17 +169,24 @@ const LoginScreen = () => {
         return;
       }
 
-      const profileData = {
+      await authService.updateUserProfile(user.id, {
         role: 'customer',
-        status: 'active', // Customers are auto-approved
-        location: customerForm.address
-      };
+        status: 'active',
+        location: customerForm.address,
+        metadata: {
+          serviceNumber: customerForm.serviceNumber,
+          moduleType: customerForm.moduleType,
+          kwCapacity: customerForm.kwCapacity,
+          houseType: customerForm.houseType,
+          floors: customerForm.floors,
+          remarks: customerForm.remarks,
+          coordinates: customerForm.coordinates
+        }
+      });
 
-      await authService.updateUserProfile(user.id, profileData);
       showToast('Customer registration completed! You can now login.');
       setActiveMode('login');
     } catch (error) {
-      console.error('Customer registration error:', error);
       showToast(error.message || 'Registration failed', 'error');
     } finally {
       setLoading(false);
@@ -202,61 +204,316 @@ const LoginScreen = () => {
         return;
       }
 
-      const profileData = {
+      await authService.updateUserProfile(user.id, {
         role: professionalForm.role,
-        status: 'pending', // Professionals need admin approval
+        status: 'pending',
         education: professionalForm.education,
         location: professionalForm.address,
-        bank_details: professionalForm.bankDetails
-      };
+        bank_details: { details: professionalForm.bankDetails }
+      });
 
-      await authService.updateUserProfile(user.id, profileData);
       showToast('Professional registration submitted! Please wait for admin approval.');
       setActiveMode('login');
     } catch (error) {
-      console.error('Professional registration error:', error);
       showToast(error.message || 'Registration failed', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const FileUploadField = ({ label, field, formType = 'customer', accept = "image/*" }) => {
-    const form = formType === 'customer' ? customerForm : professionalForm;
-    const file = form[field];
-    
+  // Mode Toggle Component
+  const ModeToggle = () => (
+    <div className="flex items-center justify-center space-x-3 mb-6 p-3 bg-gray-100 rounded-lg">
+      <span className={`text-sm font-medium ${!isLiveMode ? 'text-blue-600' : 'text-gray-500'}`}>
+        Demo Mode
+      </span>
+      <button
+        onClick={() => toggleMode(!isLiveMode)}
+        className="relative"
+      >
+        {isLiveMode ? (
+          <ToggleRight className="w-8 h-8 text-green-600" />
+        ) : (
+          <ToggleLeft className="w-8 h-8 text-gray-400" />
+        )}
+      </button>
+      <span className={`text-sm font-medium ${isLiveMode ? 'text-green-600' : 'text-gray-500'}`}>
+        Live Mode
+      </span>
+    </div>
+  );
+
+  // Demo Login Screen
+  if (!isLiveMode) {
     return (
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {label} *
-        </label>
-        <label className="flex items-center justify-center w-full px-4 py-3 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 border-2 border-dashed border-gray-300 cursor-pointer transition-colors">
-          {file ? (
-            <div className="flex items-center text-green-600">
-              <Upload className="w-5 h-5 mr-2" />
-              <span className="text-sm">{file.name} ✓</span>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+          <div className="text-center mb-8">
+            <Sun className="w-16 h-16 text-green-600 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-gray-900">GreenSolar Demo</h1>
+            <p className="text-gray-600 mt-2">Experience all dashboards</p>
+          </div>
+
+          <ModeToggle />
+
+          <form onSubmit={handleDemoLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Demo User
+              </label>
+              <select
+                value={demoLoginForm.selectedUser}
+                onChange={(e) => setDemoLoginForm({ selectedUser: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {demoUsers.map((user) => (
+                  <option key={user.email} value={user.email}>
+                    {user.name} - {user.role}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : (
-            <div className="flex items-center">
-              <Camera className="w-5 h-5 mr-2" />
-              <span className="text-sm">Upload {label}</span>
-            </div>
-          )}
-          <input
-            type="file"
-            accept={accept}
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files[0];
-              if (file) {
-                handleFileUpload(field, file, formType);
-              }
-            }}
-          />
-        </label>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50"
+            >
+              {loading ? 'Logging In...' : 'Enter Demo Dashboard'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600 mb-4">
+              Demo mode uses mock data for quick demonstrations
+            </p>
+            <button
+              onClick={() => setActiveMode('signup')}
+              className="text-blue-600 hover:text-blue-700 font-medium text-sm"
+            >
+              Register New Account →
+            </button>
+          </div>
+        </div>
       </div>
     );
-  };
+  }
+
+  // Live Mode Login Screen
+  if (activeMode === 'login') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+          <div className="text-center mb-8">
+            <Sun className="w-16 h-16 text-green-600 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-gray-900">GreenSolar</h1>
+            <p className="text-gray-600 mt-2">Field Service Management</p>
+          </div>
+
+          <ModeToggle />
+
+          {/* Login Type Selector */}
+          <div className="flex space-x-2 mb-6">
+            <button
+              onClick={() => setLoginType('demo')}
+              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                loginType === 'demo'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Demo Login
+            </button>
+            <button
+              onClick={() => setLoginType('live')}
+              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                loginType === 'live'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Live Login
+            </button>
+            <button
+              onClick={() => setLoginType('phone')}
+              className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                loginType === 'phone'
+                  ? 'bg-purple-100 text-purple-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Phone OTP
+            </button>
+          </div>
+
+          {/* Demo Login */}
+          {loginType === 'demo' && (
+            <form onSubmit={handleDemoLogin} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Demo Account
+                </label>
+                <select
+                  value={demoLoginForm.selectedUser}
+                  onChange={(e) => setDemoLoginForm({ selectedUser: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {demoUsers.map((user) => (
+                    <option key={user.email} value={user.email}>
+                      {user.name} - {user.role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {loading ? 'Entering...' : 'Enter Demo Dashboard'}
+              </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={handleCreateDemoUsers}
+                  disabled={creatingDemoUsers}
+                  className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                >
+                  {creatingDemoUsers ? 'Creating Demo Users...' : 'Setup Demo Users in Database'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Live Email/Password Login */}
+          {loginType === 'live' && (
+            <form onSubmit={handleLiveLogin} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="email"
+                    value={liveLoginForm.email}
+                    onChange={(e) => setLiveLoginForm(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={liveLoginForm.password}
+                    onChange={(e) => setLiveLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    placeholder="Enter your password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {loading ? 'Signing In...' : 'Sign In'}
+              </button>
+            </form>
+          )}
+
+          {/* Phone OTP Login */}
+          {loginType === 'phone' && (
+            <form onSubmit={handlePhoneLogin} className="space-y-6">
+              {phoneLoginForm.step === 'phone' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number
+                  </label>
+                  <div className="relative">
+                    <Smartphone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="tel"
+                      value={phoneLoginForm.phone}
+                      onChange={(e) => setPhoneLoginForm(prev => ({ ...prev, phone: e.target.value }))}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="+91 98765 43210"
+                      required
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Enter OTP sent to {phoneLoginForm.phone}
+                  </label>
+                  <input
+                    type="text"
+                    value={phoneLoginForm.otp}
+                    onChange={(e) => setPhoneLoginForm(prev => ({ ...prev, otp: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-center text-2xl tracking-widest"
+                    placeholder="123456"
+                    maxLength="6"
+                    required
+                  />
+                  <p className="text-sm text-gray-500 text-center mt-2">Demo OTP: 123456</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {loading ? 'Processing...' : phoneLoginForm.step === 'phone' ? 'Send OTP' : 'Verify OTP'}
+              </button>
+
+              {phoneLoginForm.step === 'otp' && (
+                <button
+                  type="button"
+                  onClick={() => setPhoneLoginForm(prev => ({ ...prev, step: 'phone', otp: '' }))}
+                  className="w-full text-purple-600 hover:text-purple-700 text-sm"
+                >
+                  ← Change Phone Number
+                </button>
+              )}
+            </form>
+          )}
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <button
+                onClick={() => setActiveMode('signup')}
+                className="text-green-600 hover:text-green-700 font-medium"
+              >
+                Sign Up
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Signup Screen
   if (activeMode === 'signup') {
@@ -264,16 +521,31 @@ const LoginScreen = () => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <img 
-              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-              alt="GreenSolar Logo" 
-              className="h-16 w-auto mx-auto mb-4"
-            />
+            <Sun className="w-16 h-16 text-green-600 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
-            <p className="text-gray-600 mt-2">Sign up to get started</p>
+            <p className="text-gray-600 mt-2">Join GreenSolar today</p>
           </div>
 
+          <ModeToggle />
+
           <form onSubmit={handleSignup} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number
+              </label>
+              <div className="relative">
+                <Smartphone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="tel"
+                  value={signupForm.phone}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="+91 98765 43210"
+                  required
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Full Name
@@ -282,87 +554,34 @@ const LoginScreen = () => {
                 type="text"
                 value={signupForm.name}
                 onChange={(e) => setSignupForm(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 required
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Phone Number
+                I am a...
               </label>
-              <input
-                type="tel"
-                value={signupForm.phone}
-                onChange={(e) => setSignupForm(prev => ({ ...prev, phone: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="email"
-                  value={signupForm.email}
-                  onChange={(e) => setSignupForm(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={signupForm.password}
-                  onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
-                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  minLength="6"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={signupForm.confirmPassword}
-                  onChange={(e) => setSignupForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  minLength="6"
-                />
-              </div>
+              <select
+                value={signupForm.role}
+                onChange={(e) => setSignupForm(prev => ({ ...prev, role: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              >
+                <option value="customer">Customer</option>
+                <option value="agent">Agent</option>
+                <option value="freelancer">Freelancer</option>
+                <option value="installer">Installer</option>
+                <option value="technician">Technician</option>
+              </select>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50"
+              className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
             >
-              {loading ? 'Creating Account...' : 'Create Account'}
+              {loading ? 'Creating Account...' : 'Continue Registration'}
             </button>
           </form>
 
@@ -371,7 +590,7 @@ const LoginScreen = () => {
               Already have an account?{' '}
               <button
                 onClick={() => setActiveMode('login')}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-green-600 hover:text-green-700 font-medium"
               >
                 Sign In
               </button>
@@ -382,119 +601,60 @@ const LoginScreen = () => {
     );
   }
 
-  if (activeMode === 'register-type') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <img 
-              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-              alt="GreenSolar Logo" 
-              className="h-16 w-auto mx-auto mb-4"
-            />
-            <h1 className="text-2xl font-bold text-gray-900">Complete Your Registration</h1>
-            <p className="text-gray-600 mt-2">Choose your role to continue</p>
-          </div>
-
-          <div className="space-y-4">
-            <button
-              onClick={() => setActiveMode('customer-form')}
-              className="w-full flex items-center justify-center px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <User className="w-5 h-5 mr-3" />
-              I'm a Customer
-            </button>
-            
-            <button
-              onClick={() => setActiveMode('professional-form')}
-              className="w-full flex items-center justify-center px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <UserPlus className="w-5 h-5 mr-3" />
-              I'm a Professional
-            </button>
-          </div>
-
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => setActiveMode('login')}
-              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-            >
-              ← Back to Login
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // Customer Registration Form
   if (activeMode === 'customer-form') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <img 
-              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-              alt="GreenSolar Logo" 
-              className="h-16 w-auto mx-auto mb-4"
-            />
+            <Sun className="w-16 h-16 text-green-600 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900">Customer Registration</h1>
-            <p className="text-gray-600 mt-2">Complete your customer profile</p>
+            <p className="text-gray-600 mt-2">Complete your profile</p>
           </div>
 
           <form onSubmit={handleCustomerSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Service Number *</label>
-              <input
-                type="text"
-                value={customerForm.serviceNumber}
-                onChange={(e) => setCustomerForm(prev => ({ ...prev, serviceNumber: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Service Number</label>
+                <input
+                  type="text"
+                  value={customerForm.serviceNumber}
+                  onChange={(e) => setCustomerForm(prev => ({ ...prev, serviceNumber: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">KW Capacity</label>
+                <input
+                  type="number"
+                  value={customerForm.kwCapacity}
+                  onChange={(e) => setCustomerForm(prev => ({ ...prev, kwCapacity: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  required
+                />
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
               <textarea
                 value={customerForm.address}
                 onChange={(e) => setCustomerForm(prev => ({ ...prev, address: e.target.value }))}
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 required
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Location Coordinates *</label>
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={customerForm.coordinates.lat && customerForm.coordinates.lng 
-                    ? `${customerForm.coordinates.lat}, ${customerForm.coordinates.lng}` 
-                    : ''}
-                  placeholder="Coordinates will appear here"
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50"
-                  readOnly
-                />
-                <button
-                  type="button"
-                  onClick={handleGetLocation}
-                  disabled={gettingLocation}
-                  className="flex items-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  <MapPin className="w-4 h-4 mr-2" />
-                  {gettingLocation ? 'Getting...' : 'Get Location'}
-                </button>
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Module Type *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Module Type</label>
                 <select
                   value={customerForm.moduleType}
                   onChange={(e) => setCustomerForm(prev => ({ ...prev, moduleType: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   required
                 >
                   <option value="">Select Module Type</option>
@@ -506,22 +666,11 @@ const LoginScreen = () => {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">KW Capacity *</label>
-                <input
-                  type="number"
-                  value={customerForm.kwCapacity}
-                  onChange={(e) => setCustomerForm(prev => ({ ...prev, kwCapacity: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">House Type *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">House Type</label>
                 <select
                   value={customerForm.houseType}
                   onChange={(e) => setCustomerForm(prev => ({ ...prev, houseType: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   required
                 >
                   <option value="">Select House Type</option>
@@ -531,49 +680,19 @@ const LoginScreen = () => {
                   <option value="commercial">Commercial</option>
                 </select>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Number of Floors *</label>
-                <input
-                  type="number"
-                  value={customerForm.floors}
-                  onChange={(e) => setCustomerForm(prev => ({ ...prev, floors: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Customer Requirements & Remarks</label>
-              <textarea
-                value={customerForm.remarks}
-                onChange={(e) => setCustomerForm(prev => ({ ...prev, remarks: e.target.value }))}
-                rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Any specific requirements or remarks..."
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FileUploadField label="Customer Photo" field="customerPhoto" />
-              <FileUploadField label="Signature Photo" field="signPhoto" />
-              <FileUploadField label="Aadhar Card Photo" field="aadharPhoto" />
-              <FileUploadField label="PAN Card Photo" field="panPhoto" />
-              <FileUploadField label="Bank Book Photo" field="bankBookPhoto" />
             </div>
 
             <div className="flex items-center space-x-4 pt-6">
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 font-medium disabled:opacity-50"
               >
-                {loading ? 'Submitting...' : 'Complete Registration'}
+                {loading ? 'Completing...' : 'Complete Registration'}
               </button>
               <button
                 type="button"
-                onClick={() => setActiveMode('register-type')}
+                onClick={() => setActiveMode('login')}
                 className="flex-1 bg-gray-300 text-gray-700 py-3 px-6 rounded-lg hover:bg-gray-400 font-medium"
               >
                 Back
@@ -585,27 +704,24 @@ const LoginScreen = () => {
     );
   }
 
+  // Professional Registration Form
   if (activeMode === 'professional-form') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
-            <img 
-              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-              alt="GreenSolar Logo" 
-              className="h-16 w-auto mx-auto mb-4"
-            />
+            <Sun className="w-16 h-16 text-green-600 mx-auto mb-4" />
             <h1 className="text-2xl font-bold text-gray-900">Professional Registration</h1>
-            <p className="text-gray-600 mt-2">Join our team of professionals</p>
+            <p className="text-gray-600 mt-2">Join our team</p>
           </div>
 
           <form onSubmit={handleProfessionalSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
               <select
                 value={professionalForm.role}
                 onChange={(e) => setProfessionalForm(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 required
               >
                 <option value="">Select Role</option>
@@ -617,43 +733,37 @@ const LoginScreen = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Education Qualification *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Education</label>
               <input
                 type="text"
                 value={professionalForm.education}
                 onChange={(e) => setProfessionalForm(prev => ({ ...prev, education: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
               <textarea
                 value={professionalForm.address}
                 onChange={(e) => setProfessionalForm(prev => ({ ...prev, address: e.target.value }))}
                 rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Bank Details *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Bank Details</label>
               <textarea
                 value={professionalForm.bankDetails}
                 onChange={(e) => setProfessionalForm(prev => ({ ...prev, bankDetails: e.target.value }))}
                 rows={3}
                 placeholder="Account Number, IFSC Code, Bank Name, Branch"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 required
               />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FileUploadField label="Profile Photo" field="photo" formType="professional" />
-              <FileUploadField label="Aadhar Card Photo" field="aadharPhoto" formType="professional" />
-              <FileUploadField label="PAN Card Photo" field="panPhoto" formType="professional" />
             </div>
 
             <div className="flex items-center space-x-4 pt-6">
@@ -666,7 +776,7 @@ const LoginScreen = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveMode('register-type')}
+                onClick={() => setActiveMode('login')}
                 className="flex-1 bg-gray-300 text-gray-700 py-3 px-6 rounded-lg hover:bg-gray-400 font-medium"
               >
                 Back
@@ -678,94 +788,7 @@ const LoginScreen = () => {
     );
   }
 
-  // Default login screen
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-        <div className="text-center mb-8">
-          <img 
-            src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-            alt="GreenSolar Logo" 
-            className="h-16 w-auto mx-auto mb-4"
-          />
-          <h1 className="text-3xl font-bold text-gray-900">Welcome Back</h1>
-          <p className="text-gray-600 mt-2">Sign in to your account</p>
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="email"
-                value={loginForm.email}
-                onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your email"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type={showPassword ? "text" : "password"}
-                value={loginForm.password}
-                onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
-                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter your password"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50"
-          >
-            {loading ? 'Signing In...' : 'Sign In'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            Don't have an account?{' '}
-            <button
-              onClick={() => setActiveMode('signup')}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              Sign Up
-            </button>
-          </p>
-        </div>
-
-        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-900 mb-2">Demo Accounts:</h3>
-          <div className="text-xs text-gray-600 space-y-1">
-            <p>• Admin: admin@greensolar.com (password: admin123)</p>
-            <p>• Agent: agent@greensolar.com (password: agent123)</p>
-            <p>• Customer: customer@example.com (password: customer123)</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return null;
 };
 
 export default LoginScreen;

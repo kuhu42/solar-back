@@ -14,17 +14,17 @@ export const dbService = {
   // Users
   async getUserProfiles() {
     const { data, error } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('*')
       .order('created_at', { ascending: false })
     
     if (error) throw error
-    return data
+    return data || []
   },
 
   async createUserProfile(userData) {
     const { data, error } = await supabase
-      .from('users')
+      .from('user_profiles')
       .insert([userData])
       .select()
       .single()
@@ -35,7 +35,7 @@ export const dbService = {
 
   async updateUserProfile(id, updates) {
     const { data, error } = await supabase
-      .from('users')
+      .from('user_profiles')
       .update(updates)
       .eq('id', id)
       .select()
@@ -47,7 +47,7 @@ export const dbService = {
 
   async getUserProfileByEmail(email) {
     const { data, error } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('*')
       .eq('email', email)
     
@@ -57,9 +57,19 @@ export const dbService = {
 
   async getUserProfileById(id) {
     const { data, error } = await supabase
-      .from('users')
+      .from('user_profiles')
       .select('*')
       .eq('id', id)
+    
+    if (error) throw error
+    return data && data.length > 0 ? data[0] : null
+  },
+
+  async getUserProfileByPhone(phone) {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('phone', phone)
     
     if (error) throw error
     return data && data.length > 0 ? data[0] : null
@@ -126,63 +136,6 @@ export const dbService = {
       .from('tasks')
       .update(updates)
       .eq('id', id)
-      .select()
-      .single()
-    
-    if (error) throw error
-    return data
-  },
-
-  // Attendance
-  async getAttendance() {
-    const { data, error } = await supabase
-      .from('attendance')
-      .select('*')
-      .order('date', { ascending: false })
-    
-    if (error) throw error
-    return data || []
-  },
-
-  async createAttendance(attendanceData) {
-    const { data, error } = await supabase
-      .from('attendance')
-      .insert([attendanceData])
-      .select()
-      .single()
-    
-    if (error) throw error
-    return data
-  },
-
-  async updateAttendance(id, updates) {
-    const { data, error } = await supabase
-      .from('attendance')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-    
-    if (error) throw error
-    return data
-  },
-
-  // Inventory
-  async getInventory() {
-    const { data, error } = await supabase
-      .from('inventory')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (error) throw error
-    return data || []
-  },
-
-  async updateInventory(serialNumber, updates) {
-    const { data, error } = await supabase
-      .from('inventory')
-      .update(updates)
-      .eq('serial_number', serialNumber)
       .select()
       .single()
     
@@ -258,6 +211,77 @@ export const dbService = {
     return data
   },
 
+  // Attendance
+  async getAttendance() {
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('*')
+      .order('date', { ascending: false })
+    
+    if (error) throw error
+    return data || []
+  },
+
+  async createAttendance(attendanceData) {
+    const { data, error } = await supabase
+      .from('attendance')
+      .upsert([attendanceData], { 
+        onConflict: 'user_id,date',
+        ignoreDuplicates: false 
+      })
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  },
+
+  async updateAttendance(id, updates) {
+    const { data, error } = await supabase
+      .from('attendance')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  },
+
+  // Inventory
+  async getInventory() {
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    if (error) throw error
+    return data || []
+  },
+
+  async updateInventory(serialNumber, updates) {
+    const { data, error } = await supabase
+      .from('inventory')
+      .update(updates)
+      .eq('serial_number', serialNumber)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  },
+
+  async createInventoryItem(inventoryData) {
+    const { data, error } = await supabase
+      .from('inventory')
+      .insert([inventoryData])
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  },
+
   // Invoices
   async getInvoices() {
     const { data, error } = await supabase
@@ -272,7 +296,7 @@ export const dbService = {
     return data || []
   },
 
-  async createInvoice(invoiceData, items) {
+  async createInvoice(invoiceData, items = []) {
     const { data: invoice, error: invoiceError } = await supabase
       .from('invoices')
       .insert([invoiceData])
@@ -309,6 +333,22 @@ export const dbService = {
     return data
   },
 
+  // Commissions
+  async getCommissions(freelancerId = null) {
+    let query = supabase
+      .from('commissions')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (freelancerId) {
+      query = query.eq('freelancer_id', freelancerId);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error
+    return data || []
+  },
+
   // Notifications
   async getNotifications(userId) {
     const { data, error } = await supabase
@@ -318,7 +358,7 @@ export const dbService = {
       .order('created_at', { ascending: false })
     
     if (error) throw error
-    return data
+    return data || []
   },
 
   async createNotification(notificationData) {
@@ -342,5 +382,122 @@ export const dbService = {
     
     if (error) throw error
     return data
+  },
+
+  // Documents
+  async getDocuments(filters = {}) {
+    let query = supabase
+      .from('documents')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (filters.projectId) {
+      query = query.eq('project_id', filters.projectId);
+    }
+    if (filters.customerId) {
+      query = query.eq('customer_id', filters.customerId);
+    }
+    if (filters.type) {
+      query = query.eq('type', filters.type);
+    }
+    
+    const { data, error } = await query;
+    if (error) throw error
+    return data || []
+  },
+
+  async uploadDocument(file, metadata) {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${metadata.type}/${fileName}`;
+
+      // Upload file to storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Create document record
+      const { data: docData, error: docError } = await supabase
+        .from('documents')
+        .insert([{
+          name: file.name,
+          type: metadata.type,
+          file_path: uploadData.path,
+          file_size: file.size,
+          mime_type: file.type,
+          uploaded_by: metadata.uploadedBy,
+          project_id: metadata.projectId,
+          customer_id: metadata.customerId,
+          metadata: metadata.additional || {}
+        }])
+        .select()
+        .single();
+
+      if (docError) throw docError;
+      return docData;
+    } catch (error) {
+      console.error('Document upload error:', error);
+      throw error;
+    }
+  },
+
+  // Analytics
+  async trackEvent(eventType, eventData = {}) {
+    try {
+      const { data, error } = await supabase
+        .from('analytics_events')
+        .insert([{
+          user_id: eventData.userId || null,
+          event_type: eventType,
+          event_data: eventData,
+          session_id: eventData.sessionId || null
+        }]);
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Analytics tracking error:', error);
+      // Don't throw - analytics shouldn't break the app
+    }
+  },
+
+  // Real-time subscriptions
+  subscribeToTable(table, callback, filters = {}) {
+    let subscription = supabase
+      .channel(`${table}_changes`)
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: table,
+          ...filters 
+        }, 
+        callback
+      )
+      .subscribe();
+
+    return subscription;
+  },
+
+  // File upload to storage
+  async uploadFile(bucket, path, file) {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(path, file);
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Get file URL from storage
+  async getFileUrl(bucket, path) {
+    const { data } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(path);
+
+    return data.publicUrl;
   }
 }

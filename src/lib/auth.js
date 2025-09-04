@@ -1,21 +1,17 @@
 import { supabase } from './supabase.js';
 
 export const authService = {
-  // OTP-based signup with phone number
+  // Phone-based signup with OTP
   async signUpWithPhone(phone, userData) {
     try {
-      // Generate OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // In demo mode, we'll use email/password for simplicity
+      // For demo purposes, we'll create a temporary email
       // In production, you'd integrate with SMS service
-      const email = `${phone.replace(/[^0-9]/g, '')}@temp.greensolar.com`;
-      const password = 'temp123456';
+      const tempEmail = `${phone.replace(/[^0-9]/g, '')}@temp.greensolar.com`;
+      const tempPassword = 'temp123456';
       
       const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        phone,
+        email: tempEmail,
+        password: tempPassword,
         options: {
           data: {
             phone,
@@ -37,31 +33,113 @@ export const authService = {
           location: userData.location,
           education: userData.education,
           address: userData.address,
-          bank_details: userData.bankDetails ? { details: userData.bankDetails } : {}
+          bank_details: userData.bankDetails || {},
+          otp_verified: true // Skip OTP for demo
         });
       }
 
-      return { data, otp }; // In production, OTP would be sent via SMS
+      return { data, user: data.user };
     } catch (error) {
       console.error('Phone signup error:', error);
       throw error;
     }
   },
 
-  // Demo login with predefined credentials
-  async signInDemo(email, password) {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+  // Create demo users with auth accounts
+  async createDemoUsers() {
+    const demoUsers = [
+      {
+        email: 'admin@greensolar.com',
+        password: 'admin123',
+        phone: '+91 98765 00001',
+        name: 'John Admin',
+        role: 'admin',
+        status: 'active',
+        location: 'Mumbai Head Office'
+      },
+      {
+        email: 'agent@greensolar.com',
+        password: 'agent123',
+        phone: '+91 98765 00002',
+        name: 'Sarah Agent',
+        role: 'agent',
+        status: 'active',
+        location: 'Mumbai Field Office'
+      },
+      {
+        email: 'freelancer@greensolar.com',
+        password: 'freelancer123',
+        phone: '+91 98765 00003',
+        name: 'Mike Freelancer',
+        role: 'freelancer',
+        status: 'active',
+        location: 'Bangalore Remote'
+      },
+      {
+        email: 'installer@greensolar.com',
+        password: 'installer123',
+        phone: '+91 98765 00004',
+        name: 'Tom Installer',
+        role: 'installer',
+        status: 'active',
+        location: 'Delhi Installation Team'
+      },
+      {
+        email: 'tech@greensolar.com',
+        password: 'tech123',
+        phone: '+91 98765 00005',
+        name: 'Lisa Technician',
+        role: 'technician',
+        status: 'active',
+        location: 'Pune Maintenance Team'
+      },
+      {
+        email: 'customer@example.com',
+        password: 'customer123',
+        phone: '+91 98765 00006',
+        name: 'David Customer',
+        role: 'customer',
+        status: 'active',
+        location: 'Bandra West, Mumbai'
+      }
+    ];
 
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Demo signin error:', error);
-      throw error;
+    const results = [];
+    
+    for (const user of demoUsers) {
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email: user.email,
+          password: user.password,
+          options: {
+            data: {
+              phone: user.phone,
+              name: user.name,
+              role: user.role
+            }
+          }
+        });
+
+        if (data.user) {
+          // Create profile
+          await this.createUserProfile(data.user.id, {
+            phone: user.phone,
+            name: user.name,
+            role: user.role,
+            status: user.status,
+            location: user.location,
+            otp_verified: true
+          });
+          
+          results.push({ success: true, email: user.email });
+        }
+      } catch (error) {
+        console.log(`Demo user ${user.email} might already exist:`, error.message);
+        results.push({ success: false, email: user.email, error: error.message });
+      }
     }
+    
+    return results;
   },
 
   // OTP verification for phone login
@@ -69,7 +147,7 @@ export const authService = {
     try {
       // In demo mode, accept 123456 as valid OTP
       if (otp === '123456') {
-        // Find user by phone and sign them in
+        // Find user by phone
         const { data: profiles, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
@@ -98,7 +176,7 @@ export const authService = {
     }
   },
 
-  // Regular email/password signin (for demo accounts)
+  // Regular email/password signin
   async signIn(email, password) {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -163,11 +241,10 @@ export const authService = {
           id: userId,
           ...profileData
         }])
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
-      return data;
+      return data && data.length > 0 ? data[0] : null;
     } catch (error) {
       console.error('Create profile error:', error);
       throw error;
@@ -181,11 +258,10 @@ export const authService = {
         .from('user_profiles')
         .update(profileData)
         .eq('id', userId)
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
-      return data;
+      return data && data.length > 0 ? data[0] : null;
     } catch (error) {
       console.error('Update profile error:', error);
       throw error;
@@ -208,102 +284,91 @@ export const authService = {
     }
   },
 
-  // Create demo users with auth accounts
-  async createDemoUsers() {
-    const demoUsers = [
-      {
-        email: 'admin@greensolar.com',
-        password: 'admin123',
-        phone: '+91 98765 00001',
-        name: 'John Admin',
-        role: 'admin',
-        status: 'active',
-        location: 'Mumbai Head Office'
-      },
-      {
-        email: 'agent@greensolar.com',
-        password: 'agent123',
-        phone: '+91 98765 00002',
-        name: 'Sarah Agent',
-        role: 'agent',
-        status: 'active',
-        location: 'Mumbai Field Office'
-      },
-      {
-        email: 'freelancer@greensolar.com',
-        password: 'freelancer123',
-        phone: '+91 98765 00003',
-        name: 'Mike Freelancer',
-        role: 'freelancer',
-        status: 'active',
-        location: 'Bangalore Remote'
-      },
-      {
-        email: 'installer@greensolar.com',
-        password: 'installer123',
-        phone: '+91 98765 00004',
-        name: 'Tom Installer',
-        role: 'installer',
-        status: 'active',
-        location: 'Delhi Installation Team'
-      },
-      {
-        email: 'tech@greensolar.com',
-        password: 'tech123',
-        phone: '+91 98765 00005',
-        name: 'Lisa Technician',
-        role: 'technician',
-        status: 'active',
-        location: 'Pune Maintenance Team'
-      },
-      {
-        email: 'customer@example.com',
-        password: 'customer123',
-        phone: '+91 98765 00006',
-        name: 'David Customer',
-        role: 'customer',
-        status: 'active',
-        location: 'Bandra West, Mumbai',
-        customerRefNumber: 'CUST-2024-001'
-      }
-    ];
+  // Get user profile by phone
+  async getUserProfileByPhone(phone) {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('phone', phone);
 
-    const results = [];
-    
-    for (const user of demoUsers) {
-      try {
-        const { data, error } = await supabase.auth.signUp({
-          email: user.email,
-          password: user.password,
-          options: {
-            data: {
-              phone: user.phone,
-              name: user.name,
-              role: user.role
-            }
-          }
-        });
-
-        if (data.user) {
-          // Create profile
-          await this.createUserProfile(data.user.id, {
-            phone: user.phone,
-            name: user.name,
-            role: user.role,
-            status: user.status,
-            location: user.location,
-            customer_ref_number: user.customerRefNumber,
-            otp_verified: true
-          });
-          
-          results.push({ success: true, email: user.email });
-        }
-      } catch (error) {
-        console.log(`Demo user ${user.email} might already exist:`, error.message);
-        results.push({ success: false, email: user.email, error: error.message });
-      }
+      if (error) throw error;
+      return data && data.length > 0 ? data[0] : null;
+    } catch (error) {
+      console.error('Get profile by phone error:', error);
+      throw error;
     }
-    
-    return results;
+  },
+
+  // Send OTP (mock implementation)
+  async sendOTP(phone) {
+    try {
+      // In production, integrate with SMS service
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Store OTP in database
+      const { data, error } = await supabase
+        .from('user_sessions')
+        .insert([{
+          phone,
+          otp_code: otp,
+          otp_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes
+        }])
+        .select();
+
+      if (error) throw error;
+      
+      // In demo mode, return OTP for testing
+      console.log(`Demo OTP for ${phone}: ${otp}`);
+      return { success: true, otp }; // Remove OTP from return in production
+    } catch (error) {
+      console.error('Send OTP error:', error);
+      throw error;
+    }
+  },
+
+  // Verify OTP and create session
+  async verifyOTPAndSignIn(phone, otp) {
+    try {
+      // Check OTP in database
+      const { data: sessions, error: sessionError } = await supabase
+        .from('user_sessions')
+        .select('*')
+        .eq('phone', phone)
+        .eq('otp_code', otp)
+        .gt('otp_expires_at', new Date().toISOString())
+        .eq('verified', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (sessionError) throw sessionError;
+      
+      if (!sessions || sessions.length === 0) {
+        throw new Error('Invalid or expired OTP');
+      }
+
+      // Mark OTP as verified
+      await supabase
+        .from('user_sessions')
+        .update({ verified: true })
+        .eq('id', sessions[0].id);
+
+      // Find user profile
+      const profile = await this.getUserProfileByPhone(phone);
+      if (!profile) {
+        throw new Error('User profile not found');
+      }
+
+      // Update last login
+      await this.updateUserProfile(profile.id, {
+        last_login: new Date().toISOString(),
+        otp_verified: true
+      });
+
+      return { user: profile, verified: true };
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      throw error;
+    }
   }
 };

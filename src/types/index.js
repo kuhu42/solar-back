@@ -36,6 +36,15 @@ export const INVENTORY_STATUS = {
   DECOMMISSIONED: 'decommissioned'
 };
 
+export const INVENTORY_COMPANIES = {
+  TATA_SOLAR: 'tata_solar',
+  ADANI_SOLAR: 'adani_solar',
+  VIKRAM_SOLAR: 'vikram_solar',
+  WAAREE_ENERGIES: 'waaree_energies',
+  LUMINOUS: 'luminous',
+  EXIDE: 'exide'
+};
+
 export const LEAD_STATUS = {
   NEW: 'new',
   CONTACTED: 'contacted',

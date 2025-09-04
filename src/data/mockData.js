@@ -1,4 +1,5 @@
 import { USER_ROLES, USER_STATUS, PROJECT_STATUS, TASK_STATUS, INVENTORY_STATUS, LEAD_STATUS, COMPLAINT_STATUS, INVOICE_STATUS } from '../types/index.js';
+import { INVENTORY_COMPANIES } from '../types/index.js';
 
 export const mockUsers = [
   {
@@ -317,53 +318,159 @@ export const mockAttendance = [
 export const mockInventory = [
   {
     id: 'inv-1',
+    company: INVENTORY_COMPANIES.TATA_SOLAR,
+    companyName: 'Tata Solar',
     serialNumber: 'SP001',
     type: 'solar_panel',
     model: 'SolarMax 300W',
+    specifications: {
+      wattage: '300W',
+      efficiency: '20.5%',
+      dimensions: '1956x992x40mm',
+      weight: '22kg'
+    },
     status: INVENTORY_STATUS.ASSIGNED,
     location: 'Mumbai Warehouse',
     assignedTo: 'proj-1',
-    warrantyExpiry: '2034-01-15'
+    assignedDate: '2024-01-15',
+    warrantyExpiry: '2034-01-15',
+    purchaseDate: '2024-01-01',
+    cost: 15000,
+    addedBy: '1',
+    addedByName: 'John Admin'
   },
   {
     id: 'inv-2',
+    company: INVENTORY_COMPANIES.TATA_SOLAR,
+    companyName: 'Tata Solar',
     serialNumber: 'SP002',
     type: 'solar_panel',
     model: 'SolarMax 300W',
+    specifications: {
+      wattage: '300W',
+      efficiency: '20.5%',
+      dimensions: '1956x992x40mm',
+      weight: '22kg'
+    },
     status: INVENTORY_STATUS.ASSIGNED,
     location: 'Mumbai Warehouse',
     assignedTo: 'proj-1',
-    warrantyExpiry: '2034-01-15'
+    assignedDate: '2024-01-15',
+    warrantyExpiry: '2034-01-15',
+    purchaseDate: '2024-01-01',
+    cost: 15000,
+    addedBy: '1',
+    addedByName: 'John Admin'
   },
   {
     id: 'inv-3',
+    company: INVENTORY_COMPANIES.LUMINOUS,
+    companyName: 'Luminous Power Technologies',
     serialNumber: 'INV001',
     type: 'inverter',
     model: 'PowerInvert 5000',
+    specifications: {
+      capacity: '5kW',
+      inputVoltage: '12V/24V/48V DC',
+      outputVoltage: '230V AC',
+      efficiency: '95%'
+    },
     status: INVENTORY_STATUS.ASSIGNED,
     location: 'Mumbai Warehouse',
     assignedTo: 'proj-1',
-    warrantyExpiry: '2029-01-15'
+    assignedDate: '2024-01-15',
+    warrantyExpiry: '2029-01-15',
+    purchaseDate: '2024-01-01',
+    cost: 35000,
+    addedBy: '1',
+    addedByName: 'John Admin'
   },
   {
     id: 'inv-4',
+    company: INVENTORY_COMPANIES.ADANI_SOLAR,
+    companyName: 'Adani Solar',
     serialNumber: 'SP005',
     type: 'solar_panel',
     model: 'SolarMax 400W',
+    specifications: {
+      wattage: '400W',
+      efficiency: '21.2%',
+      dimensions: '2008x1002x40mm',
+      weight: '24kg'
+    },
     status: INVENTORY_STATUS.IN_STOCK,
     location: 'Bangalore Warehouse',
-    warrantyExpiry: '2034-02-01'
+    warrantyExpiry: '2034-02-01',
+    purchaseDate: '2024-01-05',
+    cost: 18000,
+    addedBy: '1',
+    addedByName: 'John Admin'
   },
   {
     id: 'inv-5',
+    company: INVENTORY_COMPANIES.TATA_SOLAR,
+    companyName: 'Tata Solar',
     serialNumber: 'SP003',
     type: 'solar_panel',
     model: 'SolarMax 300W',
+    specifications: {
+      wattage: '300W',
+      efficiency: '20.5%',
+      dimensions: '1956x992x40mm',
+      weight: '22kg'
+    },
     status: INVENTORY_STATUS.INSTALLED,
     location: 'Gurgaon Solar Site',
     assignedTo: 'proj-3',
+    assignedDate: '2023-06-15',
     installDate: '2023-06-15',
-    warrantyExpiry: '2033-06-15'
+    warrantyExpiry: '2033-06-15',
+    purchaseDate: '2023-06-01',
+    cost: 15000,
+    addedBy: '1',
+    addedByName: 'John Admin'
+  },
+  {
+    id: 'inv-6',
+    company: INVENTORY_COMPANIES.VIKRAM_SOLAR,
+    companyName: 'Vikram Solar',
+    serialNumber: 'VS001',
+    type: 'solar_panel',
+    model: 'Vikram Eldora 375W',
+    specifications: {
+      wattage: '375W',
+      efficiency: '19.8%',
+      dimensions: '1956x992x40mm',
+      weight: '21kg'
+    },
+    status: INVENTORY_STATUS.IN_STOCK,
+    location: 'Delhi Warehouse',
+    warrantyExpiry: '2034-03-01',
+    purchaseDate: '2024-01-10',
+    cost: 16500,
+    addedBy: '1',
+    addedByName: 'John Admin'
+  },
+  {
+    id: 'inv-7',
+    company: INVENTORY_COMPANIES.EXIDE,
+    companyName: 'Exide Industries',
+    serialNumber: 'BAT001',
+    type: 'battery',
+    model: 'Exide Solar 150Ah',
+    specifications: {
+      capacity: '150Ah',
+      voltage: '12V',
+      type: 'Tubular',
+      lifespan: '5-7 years'
+    },
+    status: INVENTORY_STATUS.IN_STOCK,
+    location: 'Mumbai Warehouse',
+    warrantyExpiry: '2027-01-15',
+    purchaseDate: '2024-01-08',
+    cost: 12000,
+    addedBy: '1',
+    addedByName: 'John Admin'
   }
 ];
 

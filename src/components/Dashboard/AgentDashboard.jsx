@@ -14,12 +14,11 @@ import {
   Phone,
   Mail,
   DollarSign,
-  Send,
-  Scan
+  Send
 } from 'lucide-react';
 
 const AgentDashboard = () => {
-  const { currentUser, projects, tasks, attendance, complaints, users, inventory, dispatch, showToast } = useApp();
+  const { currentUser, projects, tasks, attendance, dispatch, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
   const [checkingIn, setCheckingIn] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -27,13 +26,9 @@ const AgentDashboard = () => {
   const [showPDF, setShowPDF] = useState(false);
   const [quotationData, setQuotationData] = useState(null);
   const [sendingQuote, setSendingQuote] = useState(false);
-  const [showAssignInstallerModal, setShowAssignInstallerModal] = useState(false);
-  const [selectedComplaintForAssignment, setSelectedComplaintForAssignment] = useState(null);
-  const [selectedInstaller, setSelectedInstaller] = useState('');
 
   const myProjects = projects.filter(p => p.assignedTo === currentUser?.id);
   const myTasks = tasks.filter(t => t.assignedTo === currentUser?.id);
-  const myAssignedComplaints = complaints.filter(c => c.assignedAgent === currentUser?.id);
   const todayAttendance = attendance.find(a => 
     a.userId === currentUser?.id && 
     a.date === new Date().toISOString().split('T')[0]
@@ -110,32 +105,6 @@ const AgentDashboard = () => {
       payload: { projectId, pipelineStage: stage }
     });
     showToast('Project stage updated!');
-  };
-
-  const handleAssignInstaller = () => {
-    if (!selectedInstaller) {
-      showToast('Please select an installer', 'error');
-      return;
-    }
-
-    const installer = users.find(u => u.id === selectedInstaller);
-    
-    dispatch({
-      type: 'UPDATE_COMPLAINT',
-      payload: {
-        id: selectedComplaintForAssignment.id,
-        updates: {
-          assignedTo: selectedInstaller,
-          assignedToName: installer.name,
-          workflowStatus: 'installer_assigned'
-        }
-      }
-    });
-
-    showToast(`Complaint assigned to ${installer.name}`);
-    setShowAssignInstallerModal(false);
-    setSelectedComplaintForAssignment(null);
-    setSelectedInstaller('');
   };
 
   const StatCard = ({ title, value, icon: Icon, color }) => (
@@ -250,16 +219,6 @@ const AgentDashboard = () => {
               }`}
             >
               Customers
-            </button>
-            <button
-              onClick={() => setActiveTab('complaints')}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                activeTab === 'complaints'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              Complaints
             </button>
           </div>
         </div>
@@ -481,180 +440,10 @@ const AgentDashboard = () => {
               </div>
             </div>
           )}
-
-          {activeTab === 'complaints' && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">My Assigned Complaints</h3>
-              
-              {myAssignedComplaints.map((complaint) => (
-                <div key={complaint.id} className="border border-gray-200 rounded-lg p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <h4 className="text-lg font-medium text-gray-900">{complaint.title}</h4>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          complaint.priority === 'urgent'
-                            ? 'bg-red-100 text-red-800'
-                            : complaint.priority === 'high'
-                            ? 'bg-orange-100 text-orange-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {complaint.priority}
-                        </span>
-                      </div>
-                      <p className="text-gray-600 mb-3">{complaint.description}</p>
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
-                        <span className="flex items-center">
-                          <Phone className="w-4 h-4 mr-1" />
-                          {complaint.customerName}
-                        </span>
-                        <span>Ref: {complaint.customerRefNumber}</span>
-                        <span className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {complaint.createdAt}
-                        </span>
-                        {complaint.serialNumber && (
-                          <span className="flex items-center">
-                            <Scan className="w-4 h-4 mr-1" />
-                            {complaint.serialNumber}
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Workflow Status */}
-                      <div className="mt-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          complaint.workflowStatus === 'work_completed'
-                            ? 'bg-green-100 text-green-800'
-                            : complaint.workflowStatus === 'work_in_progress'
-                            ? 'bg-blue-100 text-blue-800'
-                            : complaint.workflowStatus === 'installer_assigned'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          Status: {complaint.workflowStatus?.replace('_', ' ') || 'Agent Assigned'}
-                        </span>
-                      </div>
-
-                      {/* Assigned Equipment */}
-                      {complaint.assignedEquipment && complaint.assignedEquipment.length > 0 && (
-                        <div className="mt-3 bg-blue-50 rounded-lg p-3">
-                          <h5 className="font-medium text-blue-900 mb-2">Assigned Equipment:</h5>
-                          <div className="flex flex-wrap gap-2">
-                            {complaint.assignedEquipment.map(equipId => {
-                              const equipment = inventory.find(i => i.id === equipId);
-                              return equipment ? (
-                                <span key={equipId} className="px-2 py-1 bg-white border border-blue-200 rounded text-sm font-mono">
-                                  {equipment.serialNumber}
-                                </span>
-                              ) : null;
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-3">
-                    {complaint.workflowStatus === 'agent_assigned' && (
-                      <button
-                        onClick={() => {
-                          setSelectedComplaintForAssignment(complaint);
-                          setShowAssignInstallerModal(true);
-                        }}
-                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                      >
-                        <Users className="w-4 h-4 mr-2" />
-                        Assign Installer
-                      </button>
-                    )}
-                    
-                    {complaint.assignedToName && (
-                      <div className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm">
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Assigned to: {complaint.assignedToName}
-                      </div>
-                    )}
-                    
-                    <button className="flex items-center px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm">
-                      <Phone className="w-4 h-4 mr-2" />
-                      Call Customer
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        dispatch({
-                          type: 'UPDATE_COMPLAINT',
-                          payload: {
-                            id: complaint.id,
-                            updates: { workflowStatus: 'closed', status: 'resolved' }
-                          }
-                        });
-                        showToast('Complaint closed');
-                      }}
-                      className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
-                    >
-                      Close Complaint
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
       {/* Modals */}
-      {/* Installer Assignment Modal */}
-      {showAssignInstallerModal && selectedComplaintForAssignment && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Assign Installer</h3>
-            
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <h4 className="font-medium text-gray-900">{selectedComplaintForAssignment.title}</h4>
-                <p className="text-sm text-gray-600">Customer: {selectedComplaintForAssignment.customerName}</p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Installer *
-                </label>
-                <select
-                  value={selectedInstaller}
-                  onChange={(e) => setSelectedInstaller(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Choose Installer</option>
-                  {users.filter(u => (u.role === 'installer' || u.role === 'technician') && u.status === 'active').map(installer => (
-                    <option key={installer.id} value={installer.id}>
-                      {installer.name} - {installer.role} ({installer.location})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="flex items-center space-x-3 pt-4">
-                <button
-                  onClick={handleAssignInstaller}
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700"
-                >
-                  Assign Installer
-                </button>
-                <button
-                  onClick={() => setShowAssignInstallerModal(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <WhatsAppPreview
         isOpen={showWhatsApp}
         onClose={() => {

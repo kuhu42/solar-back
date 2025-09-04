@@ -36,9 +36,6 @@ const CustomerDashboard = () => {
   const myProjects = projects.filter(p => p.customerId === currentUser?.id);
   const myComplaints = complaints.filter(c => c.customerId === currentUser?.id);
   const myInvoices = invoices.filter(i => i.customerId === currentUser?.id);
-  const [customerOtp, setCustomerOtp] = useState('');
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [selectedProject, setSelectedProject] = useState(null);
 
   // Show customer reference number prominently
   const customerRefNumber = currentUser?.customerRefNumber;
@@ -65,9 +62,6 @@ const CustomerDashboard = () => {
   const handleSubmitComplaint = (e) => {
     e.preventDefault();
     
-    // Generate OTP for this complaint
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
     const complaint = {
       id: `comp-${Date.now()}`,
       customerRefNumber: currentUser.customerRefNumber,
@@ -75,13 +69,11 @@ const CustomerDashboard = () => {
       customerName: currentUser.name,
       ...newComplaint,
       status: COMPLAINT_STATUS.OPEN,
-      workflowStatus: 'complaint_logged',
-      customerOtp: otp,
       createdAt: new Date().toISOString().split('T')[0]
     };
 
     dispatch({ type: 'ADD_COMPLAINT', payload: complaint });
-    showToast(`Complaint submitted! Your OTP is: ${otp}`);
+    showToast('Complaint submitted successfully!');
     setShowComplaintForm(false);
     setNewComplaint({
       title: '',
@@ -215,33 +207,6 @@ const CustomerDashboard = () => {
         <div className="p-6">
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Active OTP Display */}
-              {myComplaints.filter(c => c.workflowStatus === 'otp_pending' || c.workflowStatus === 'installer_assigned').length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h4 className="font-medium text-blue-900 mb-3">Active Service OTP</h4>
-                  {myComplaints.filter(c => c.workflowStatus === 'otp_pending' || c.workflowStatus === 'installer_assigned').map(complaint => (
-                    <div key={complaint.id} className="bg-white rounded-lg p-4 border border-blue-200">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h5 className="font-medium text-gray-900">{complaint.title}</h5>
-                          <p className="text-sm text-gray-600">Installer: {complaint.assignedToName}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-600 mb-1">Your OTP:</p>
-                          <p className="text-2xl font-bold text-blue-600 font-mono">{complaint.customerOtp}</p>
-                        </div>
-                      </div>
-                      <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                        <p className="text-xs text-yellow-800">
-                          <strong>Important:</strong> Share this OTP with the installer when they arrive. 
-                          Do not share with anyone else.
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {/* Recent Projects */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Projects</h3>

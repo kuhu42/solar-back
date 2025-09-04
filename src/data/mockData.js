@@ -102,20 +102,11 @@ export const mockProjects = [
     location: 'Bandra West, Mumbai, Maharashtra',
     assignedTo: '4',
     assignedToName: 'Tom Installer',
-    assignedAgent: '2',
-    assignedAgentName: 'Sarah Agent',
     serialNumbers: ['SP001', 'SP002', 'INV001'],
     startDate: '2024-01-15',
     value: 250000,
     description: '5kW residential solar panel installation with battery backup',
-    coordinates: { lat: 40.7128, lng: -74.0060 },
-    workflowStatus: 'work_in_progress',
-    customerOtp: '123456',
-    otpVerified: false,
-    completionPhotos: [],
-    completionNotes: '',
-    equipmentUsed: [],
-    additionalEquipment: []
+    coordinates: { lat: 40.7128, lng: -74.0060 }
   },
   {
     id: 'proj-2',
@@ -619,11 +610,6 @@ export const mockComplaints = [
     priority: 'high',
     assignedTo: '5',
     assignedToName: 'Lisa Technician',
-    assignedAgent: '2',
-    assignedAgentName: 'Sarah Agent',
-    assignedEquipment: ['SP003'],
-    workflowStatus: 'agent_assigned',
-    customerOtp: '789012',
     serialNumber: 'SP003',
     createdAt: '2024-01-14'
   },

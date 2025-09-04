@@ -154,22 +154,6 @@ function appReducer(state, action) {
         )
       };
     
-    case 'UPDATE_COMPLAINT':
-      return {
-        ...state,
-        complaints: state.complaints.map(complaint =>
-          complaint.id === action.payload.id
-            ? { ...complaint, ...action.payload.updates }
-            : complaint
-        )
-      };
-    
-    case 'ADD_TASK':
-      return {
-        ...state,
-        tasks: [...state.tasks, action.payload]
-      };
-    
     case 'ADD_INVENTORY_ITEM':
       return {
         ...state,

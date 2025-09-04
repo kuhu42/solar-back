@@ -2,8 +2,6 @@ import React, { createContext, useContext, useReducer, useEffect, useState } fro
 import { dbService, supabase } from '../lib/supabase.js';
 import { authService } from '../lib/auth.js';
 import { USER_STATUS } from '../types/index.js';
-import { demoStateManager } from '../utils/demoMode.js';
-import { demoStateManager } from '../utils/demoMode.js';
 import { 
   mockUsers, 
   mockProjects, 

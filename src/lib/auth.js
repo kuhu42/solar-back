@@ -1,5 +1,4 @@
 import { supabase, dbService } from './supabase.js';
-import { mockUsers } from '../data/mockData.js';
 
 export const authService = {
   // Check if Supabase auth is available
@@ -7,91 +6,48 @@ export const authService = {
     return supabase !== null;
   },
 
-  // Phone-based OTP authentication
-  async signUpWithPhone(phone, userData) {
+  // Email/password sign up
+  async signUp(email, password, userData) {
     if (!this.isAvailable()) {
-      // Demo mode - return mock OTP
-      return { success: true, otp: '123456' };
+      throw new Error('Authentication service not available');
     }
 
     try {
-      // Send OTP via Supabase
-      const { data, error } = await supabase.auth.signInWithOtp({
-        phone: phone,
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
         options: {
-          shouldCreateUser: true
+          data: {
+            name: userData.name,
+            phone: userData.phone
+          }
         }
       });
 
       if (error) throw error;
 
-      // Store additional user data for profile creation
-      const sessionData = {
-        phone,
-        userData,
-        timestamp: Date.now()
-      };
-      localStorage.setItem('pendingUserData', JSON.stringify(sessionData));
-
-      return { success: true, session: data.session };
-    } catch (error) {
-      console.error('Phone signup error:', error);
-      throw error;
-    }
-  },
-
-  async verifyOTP(phone, otp) {
-    if (!this.isAvailable()) {
-      // Demo mode
-      if (otp === '123456') {
-        return { verified: true };
+      // Create user profile if signup successful
+      if (data.user) {
+        await this.createUserProfile(data.user.id, {
+          email,
+          name: userData.name,
+          phone: userData.phone,
+          role: userData.role || 'customer',
+          status: userData.role === 'customer' ? 'active' : 'pending'
+        });
       }
-      throw new Error('Invalid OTP');
-    }
 
-    try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        phone: phone,
-        token: otp,
-        type: 'sms'
-      });
-
-      if (error) throw error;
-
-      return { verified: true, user: data.user, session: data.session };
+      return data;
     } catch (error) {
-      console.error('OTP verification error:', error);
+      console.error('Signup error:', error);
       throw error;
     }
   },
 
-  async createUserProfile(userId, profileData) {
-    if (!this.isAvailable()) {
-      return profileData;
-    }
-
-    try {
-      const profile = await dbService.createUserProfile({
-        id: userId,
-        ...profileData
-      });
-
-      return profile;
-    } catch (error) {
-      console.error('Profile creation error:', error);
-      throw error;
-    }
-  },
-
-  // Email/password sign in (for existing users)
+  // Email/password sign in
   async signIn(email, password) {
     if (!this.isAvailable()) {
-      // Demo mode
-      const user = mockUsers.find(u => u.email === email);
-      if (user && password === 'demo123') {
-        return { user };
-      }
-      throw new Error('Invalid credentials');
+      throw new Error('Authentication service not available');
     }
 
     try {
@@ -136,9 +92,23 @@ export const authService = {
     }
   },
 
+  async getCurrentUser() {
+    if (!this.isAvailable()) {
+      return null;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user;
+    } catch (error) {
+      console.error('Get current user error:', error);
+      return null;
+    }
+  },
+
   async getUserProfileById(userId) {
     if (!this.isAvailable()) {
-      return mockUsers.find(u => u.id === userId);
+      return null;
     }
 
     try {
@@ -146,6 +116,42 @@ export const authService = {
     } catch (error) {
       console.error('Get user profile error:', error);
       return null;
+    }
+  },
+
+  async createUserProfile(userId, profileData) {
+    if (!this.isAvailable()) {
+      return profileData;
+    }
+
+    try {
+      const profile = await dbService.createUserProfile({
+        id: userId,
+        ...profileData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+      return profile;
+    } catch (error) {
+      console.error('Profile creation error:', error);
+      throw error;
+    }
+  },
+
+  async updateUserProfile(userId, updates) {
+    if (!this.isAvailable()) {
+      return updates;
+    }
+
+    try {
+      return await dbService.updateUserProfile(userId, {
+        ...updates,
+        updated_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Profile update error:', error);
+      throw error;
     }
   },
 
@@ -157,52 +163,42 @@ export const authService = {
     return supabase.auth.onAuthStateChange(callback);
   },
 
-  // Create demo users in Supabase (for testing)
-  async createDemoUsers() {
+  // Phone-based OTP authentication
+  async sendOTP(phone) {
     if (!this.isAvailable()) {
-      throw new Error('Supabase not available');
+      throw new Error('Authentication service not available');
     }
 
-    const results = [];
-    
-    for (const user of mockUsers) {
-      try {
-        // Create auth user
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-          email: user.email,
-          password: 'demo123',
-          phone: user.phone,
-          email_confirm: true,
-          phone_confirm: true
-        });
+    try {
+      const { data, error } = await supabase.auth.signInWithOtp({
+        phone: phone
+      });
 
-        if (authError) {
-          console.error(`Error creating auth user ${user.email}:`, authError);
-          results.push({ email: user.email, success: false, error: authError.message });
-          continue;
-        }
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Send OTP error:', error);
+      throw error;
+    }
+  },
 
-        // Create user profile
-        const profileData = {
-          id: authData.user.id,
-          phone: user.phone,
-          name: user.name,
-          role: user.role,
-          status: user.status,
-          location: user.location,
-          avatar_url: user.avatar,
-          customer_ref_number: user.customerRefNumber
-        };
-
-        const profile = await dbService.createUserProfile(profileData);
-        results.push({ email: user.email, success: true, profile });
-
-      } catch (error) {
-        console.error(`Error creating demo user ${user.email}:`, error);
-        results.push({ email: user.email, success: false, error: error.message });
-      }
+  async verifyOTP(phone, token) {
+    if (!this.isAvailable()) {
+      throw new Error('Authentication service not available');
     }
 
-    return results;
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: phone,
+        token: token,
+        type: 'sms'
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      throw error;
+    }
   }
 };

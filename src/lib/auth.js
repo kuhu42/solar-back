@@ -1,8 +1,21 @@
 import { supabase } from './supabase.js';
 
 export const authService = {
+  // Check if Supabase is available
+  isAvailable() {
+    return supabase !== null;
+  },
+
   // Phone-based signup with OTP
   async signUpWithPhone(phone, userData) {
+    if (!this.isAvailable()) {
+      // Demo mode - simulate signup
+      return {
+        data: { user: { id: `demo-${Date.now()}`, phone } },
+        user: { id: `demo-${Date.now()}`, phone }
+      };
+    }
+    
     try {
       // For demo purposes, we'll create a temporary email
       // In production, you'd integrate with SMS service
@@ -47,6 +60,18 @@ export const authService = {
 
   // Create demo users with auth accounts
   async createDemoUsers() {
+    if (!this.isAvailable()) {
+      console.log('Demo mode - users already available');
+      return [
+        { success: true, email: 'admin@greensolar.com' },
+        { success: true, email: 'agent@greensolar.com' },
+        { success: true, email: 'freelancer@greensolar.com' },
+        { success: true, email: 'installer@greensolar.com' },
+        { success: true, email: 'tech@greensolar.com' },
+        { success: true, email: 'customer@example.com' }
+      ];
+    }
+    
     const demoUsers = [
       {
         email: 'admin@greensolar.com',
@@ -144,6 +169,23 @@ export const authService = {
 
   // OTP verification for phone login
   async verifyOTP(phone, otp) {
+    if (!this.isAvailable()) {
+      // Demo mode - accept 123456
+      if (otp === '123456') {
+        return {
+          user: {
+            id: `demo-${phone}`,
+            phone,
+            name: 'Demo User',
+            role: 'customer',
+            status: 'active'
+          },
+          verified: true
+        };
+      }
+      throw new Error('Invalid OTP');
+    }
+    
     try {
       // In demo mode, accept 123456 as valid OTP
       if (otp === '123456') {
@@ -178,6 +220,10 @@ export const authService = {
 
   // Regular email/password signin
   async signIn(email, password) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -194,6 +240,10 @@ export const authService = {
 
   // Sign out
   async signOut() {
+    if (!this.isAvailable()) {
+      return; // Demo mode - no actual signout needed
+    }
+    
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -205,6 +255,10 @@ export const authService = {
 
   // Get current session
   async getSession() {
+    if (!this.isAvailable()) {
+      return null; // Demo mode - no session
+    }
+    
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) throw error;
@@ -217,6 +271,10 @@ export const authService = {
 
   // Get current user
   async getCurrentUser() {
+    if (!this.isAvailable()) {
+      return null; // Demo mode - no current user
+    }
+    
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error) throw error;
@@ -229,11 +287,19 @@ export const authService = {
 
   // Listen to auth state changes
   onAuthStateChange(callback) {
+    if (!this.isAvailable()) {
+      return { data: { subscription: { unsubscribe: () => {} } } };
+    }
+    
     return supabase.auth.onAuthStateChange(callback);
   },
 
   // Create user profile
   async createUserProfile(userId, profileData) {
+    if (!this.isAvailable()) {
+      return { id: userId, ...profileData };
+    }
+    
     try {
       const { data, error } = await supabase
         .from('user_profiles')
@@ -253,6 +319,10 @@ export const authService = {
 
   // Update user profile
   async updateUserProfile(userId, profileData) {
+    if (!this.isAvailable()) {
+      return { id: userId, ...profileData };
+    }
+    
     try {
       const { data, error } = await supabase
         .from('user_profiles')
@@ -270,6 +340,10 @@ export const authService = {
 
   // Get user profile by ID
   async getUserProfileById(userId) {
+    if (!this.isAvailable()) {
+      return null;
+    }
+    
     try {
       const { data, error } = await supabase
         .from('user_profiles')
@@ -286,6 +360,10 @@ export const authService = {
 
   // Get user profile by phone
   async getUserProfileByPhone(phone) {
+    if (!this.isAvailable()) {
+      return null;
+    }
+    
     try {
       const { data, error } = await supabase
         .from('user_profiles')
@@ -302,6 +380,10 @@ export const authService = {
 
   // Send OTP (mock implementation)
   async sendOTP(phone) {
+    if (!this.isAvailable()) {
+      return { success: true, otp: '123456' };
+    }
+    
     try {
       // In production, integrate with SMS service
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -329,6 +411,22 @@ export const authService = {
 
   // Verify OTP and create session
   async verifyOTPAndSignIn(phone, otp) {
+    if (!this.isAvailable()) {
+      if (otp === '123456') {
+        return {
+          user: {
+            id: `demo-${phone}`,
+            phone,
+            name: 'Demo User',
+            role: 'customer',
+            status: 'active'
+          },
+          verified: true
+        };
+      }
+      throw new Error('Invalid OTP');
+    }
+    
     try {
       // Check OTP in database
       const { data: sessions, error: sessionError } = await supabase

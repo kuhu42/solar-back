@@ -3,16 +3,26 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
-}
+// Allow demo mode to work without Supabase credentials
+const hasSupabaseCredentials = supabaseUrl && supabaseAnonKey;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = hasSupabaseCredentials 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 
 // Database service functions
 export const dbService = {
+  // Check if Supabase is available
+  isAvailable() {
+    return supabase !== null;
+  },
+
   // Users
   async getUserProfiles() {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
@@ -23,6 +33,10 @@ export const dbService = {
   },
 
   async createUserProfile(userData) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .insert([userData])
@@ -34,6 +48,10 @@ export const dbService = {
   },
 
   async updateUserProfile(id, updates) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .update(updates)
@@ -46,6 +64,10 @@ export const dbService = {
   },
 
   async getUserProfileByEmail(email) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
@@ -56,6 +78,10 @@ export const dbService = {
   },
 
   async getUserProfileById(id) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
@@ -66,6 +92,10 @@ export const dbService = {
   },
 
   async getUserProfileByPhone(phone) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('user_profiles')
       .select('*')
@@ -77,6 +107,10 @@ export const dbService = {
 
   // Projects
   async getProjects() {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('projects')
       .select('*')
@@ -87,6 +121,10 @@ export const dbService = {
   },
 
   async createProject(projectData) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('projects')
       .insert([projectData])
@@ -98,6 +136,10 @@ export const dbService = {
   },
 
   async updateProject(id, updates) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('projects')
       .update(updates)
@@ -111,6 +153,10 @@ export const dbService = {
 
   // Tasks
   async getTasks() {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
@@ -121,6 +167,10 @@ export const dbService = {
   },
 
   async createTask(taskData) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('tasks')
       .insert([taskData])
@@ -132,6 +182,10 @@ export const dbService = {
   },
 
   async updateTask(id, updates) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('tasks')
       .update(updates)
@@ -145,6 +199,10 @@ export const dbService = {
 
   // Leads
   async getLeads() {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('leads')
       .select('*')
@@ -155,6 +213,10 @@ export const dbService = {
   },
 
   async createLead(leadData) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('leads')
       .insert([leadData])
@@ -166,6 +228,10 @@ export const dbService = {
   },
 
   async updateLead(id, updates) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('leads')
       .update(updates)
@@ -179,6 +245,10 @@ export const dbService = {
 
   // Complaints
   async getComplaints() {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('complaints')
       .select('*')
@@ -189,6 +259,10 @@ export const dbService = {
   },
 
   async createComplaint(complaintData) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('complaints')
       .insert([complaintData])
@@ -200,6 +274,10 @@ export const dbService = {
   },
 
   async updateComplaint(id, updates) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('complaints')
       .update(updates)
@@ -213,6 +291,10 @@ export const dbService = {
 
   // Attendance
   async getAttendance() {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('attendance')
       .select('*')
@@ -223,6 +305,10 @@ export const dbService = {
   },
 
   async createAttendance(attendanceData) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('attendance')
       .upsert([attendanceData], { 
@@ -237,6 +323,10 @@ export const dbService = {
   },
 
   async updateAttendance(id, updates) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('attendance')
       .update(updates)
@@ -250,6 +340,10 @@ export const dbService = {
 
   // Inventory
   async getInventory() {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('inventory')
       .select('*')
@@ -260,6 +354,10 @@ export const dbService = {
   },
 
   async updateInventory(serialNumber, updates) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('inventory')
       .update(updates)
@@ -272,6 +370,10 @@ export const dbService = {
   },
 
   async createInventoryItem(inventoryData) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('inventory')
       .insert([inventoryData])
@@ -284,6 +386,10 @@ export const dbService = {
 
   // Invoices
   async getInvoices() {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('invoices')
       .select(`
@@ -297,6 +403,10 @@ export const dbService = {
   },
 
   async createInvoice(invoiceData, items = []) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data: invoice, error: invoiceError } = await supabase
       .from('invoices')
       .insert([invoiceData])
@@ -322,6 +432,10 @@ export const dbService = {
   },
 
   async updateInvoice(id, updates) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('invoices')
       .update(updates)
@@ -335,6 +449,10 @@ export const dbService = {
 
   // Commissions
   async getCommissions(freelancerId = null) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     let query = supabase
       .from('commissions')
       .select('*')
@@ -351,6 +469,10 @@ export const dbService = {
 
   // Notifications
   async getNotifications(userId) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
@@ -362,6 +484,10 @@ export const dbService = {
   },
 
   async createNotification(notificationData) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('notifications')
       .insert([notificationData])
@@ -373,6 +499,10 @@ export const dbService = {
   },
 
   async markNotificationRead(id) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase
       .from('notifications')
       .update({ read: true })
@@ -386,6 +516,10 @@ export const dbService = {
 
   // Documents
   async getDocuments(filters = {}) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     let query = supabase
       .from('documents')
       .select('*')
@@ -407,6 +541,10 @@ export const dbService = {
   },
 
   async uploadDocument(file, metadata) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -446,6 +584,12 @@ export const dbService = {
 
   // Analytics
   async trackEvent(eventType, eventData = {}) {
+    if (!this.isAvailable()) {
+      // In demo mode, just log to console
+      console.log('Demo Analytics Event:', eventType, eventData);
+      return;
+    }
+    
     try {
       const { data, error } = await supabase
         .from('analytics_events')
@@ -466,6 +610,11 @@ export const dbService = {
 
   // Real-time subscriptions
   subscribeToTable(table, callback, filters = {}) {
+    if (!this.isAvailable()) {
+      console.warn('Supabase not available - real-time subscriptions disabled');
+      return { unsubscribe: () => {} };
+    }
+    
     let subscription = supabase
       .channel(`${table}_changes`)
       .on('postgres_changes', 
@@ -484,6 +633,10 @@ export const dbService = {
 
   // File upload to storage
   async uploadFile(bucket, path, file) {
+    if (!this.isAvailable()) {
+      throw new Error('Supabase not configured - use demo mode');
+    }
+    
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(path, file);
@@ -494,10 +647,80 @@ export const dbService = {
 
   // Get file URL from storage
   async getFileUrl(bucket, path) {
+    if (!this.isAvailable()) {
+      // Return a placeholder URL for demo mode
+      return `https://via.placeholder.com/400x300?text=Demo+File`;
+    }
+    
     const { data } = supabase.storage
       .from(bucket)
       .getPublicUrl(path);
 
+  // OTP Management
+  async sendOTP(phone) {
+    if (!this.isAvailable()) {
+      // Demo mode - return mock OTP
+      return { success: true, otp: '123456' };
+    }
+    
+    try {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      const { data, error } = await supabase
+        .from('user_sessions')
+        .insert([{
+          phone,
+          otp_code: otp,
+          otp_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString()
+        }])
+        .select();
+
+      if (error) throw error;
+      
+      // In production, integrate with SMS service here
+      console.log(`OTP for ${phone}: ${otp}`);
+      return { success: true, otp }; // Remove OTP from return in production
+    } catch (error) {
+      console.error('Send OTP error:', error);
+      throw error;
+    }
+  },
+
+  async verifyOTP(phone, otp) {
+    if (!this.isAvailable()) {
+      // Demo mode - accept 123456
+      if (otp === '123456') {
+        return { verified: true };
+      }
+      throw new Error('Invalid OTP');
+    }
+    
+    try {
+      const { data: sessions, error } = await supabase
+        .from('user_sessions')
+        .select('*')
+        .eq('phone', phone)
+        .eq('otp_code', otp)
+        .gt('otp_expires_at', new Date().toISOString())
+        .eq('verified', false)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      
+      if (!sessions || sessions.length === 0) {
+        throw new Error('Invalid or expired OTP');
+      }
     return data.publicUrl;
+      // Mark OTP as verified
+      await supabase
+        .from('user_sessions')
+        .update({ verified: true })
+        .eq('id', sessions[0].id);
+  }
+      return { verified: true };
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      throw error;
+    }
   }
 }

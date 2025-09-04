@@ -42,7 +42,10 @@ export const INVENTORY_COMPANIES = {
   VIKRAM_SOLAR: 'vikram_solar',
   WAAREE_ENERGIES: 'waaree_energies',
   LUMINOUS: 'luminous',
-  EXIDE: 'exide'
+  EXIDE: 'exide',
+  HAVELLS: 'havells',
+  MICROTEK: 'microtek',
+  SUKAM: 'sukam'
 };
 
 export const LEAD_STATUS = {

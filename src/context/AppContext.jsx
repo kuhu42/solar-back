@@ -154,6 +154,26 @@ function appReducer(state, action) {
         )
       };
     
+    case 'ADD_INVENTORY_ITEM':
+      return {
+        ...state,
+        inventory: [...state.inventory, action.payload]
+      };
+    
+    case 'UPDATE_INVENTORY_ITEM':
+      return {
+        ...state,
+        inventory: state.inventory.map(item =>
+          item.id === action.payload.id ? { ...item, ...action.payload.updates } : item
+        )
+      };
+    
+    case 'DELETE_INVENTORY_ITEM':
+      return {
+        ...state,
+        inventory: state.inventory.filter(item => item.id !== action.payload.itemId)
+      };
+    
     case 'ADD_INVOICE':
       return {
         ...state,

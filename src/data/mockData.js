@@ -333,11 +333,13 @@ export const mockInventory = [
     location: 'Mumbai Warehouse',
     assignedTo: 'proj-1',
     assignedDate: '2024-01-15',
+    assignedBy: '1',
     warrantyExpiry: '2034-01-15',
     purchaseDate: '2024-01-01',
     cost: 15000,
     addedBy: '1',
-    addedByName: 'John Admin'
+    addedByName: 'John Admin',
+    addedAt: '2024-01-01T10:00:00Z'
   },
   {
     id: 'inv-2',
@@ -356,11 +358,13 @@ export const mockInventory = [
     location: 'Mumbai Warehouse',
     assignedTo: 'proj-1',
     assignedDate: '2024-01-15',
+    assignedBy: '1',
     warrantyExpiry: '2034-01-15',
     purchaseDate: '2024-01-01',
     cost: 15000,
     addedBy: '1',
-    addedByName: 'John Admin'
+    addedByName: 'John Admin',
+    addedAt: '2024-01-01T10:00:00Z'
   },
   {
     id: 'inv-3',
@@ -379,11 +383,13 @@ export const mockInventory = [
     location: 'Mumbai Warehouse',
     assignedTo: 'proj-1',
     assignedDate: '2024-01-15',
+    assignedBy: '1',
     warrantyExpiry: '2029-01-15',
     purchaseDate: '2024-01-01',
     cost: 35000,
     addedBy: '1',
-    addedByName: 'John Admin'
+    addedByName: 'John Admin',
+    addedAt: '2024-01-01T10:00:00Z'
   },
   {
     id: 'inv-4',
@@ -404,7 +410,8 @@ export const mockInventory = [
     purchaseDate: '2024-01-05',
     cost: 18000,
     addedBy: '1',
-    addedByName: 'John Admin'
+    addedByName: 'John Admin',
+    addedAt: '2024-01-05T10:00:00Z'
   },
   {
     id: 'inv-5',
@@ -423,12 +430,15 @@ export const mockInventory = [
     location: 'Gurgaon Solar Site',
     assignedTo: 'proj-3',
     assignedDate: '2023-06-15',
+    assignedBy: '1',
     installDate: '2023-06-15',
+    installedBy: '4',
     warrantyExpiry: '2033-06-15',
     purchaseDate: '2023-06-01',
     cost: 15000,
     addedBy: '1',
-    addedByName: 'John Admin'
+    addedByName: 'John Admin',
+    addedAt: '2023-06-01T10:00:00Z'
   },
   {
     id: 'inv-6',
@@ -449,7 +459,8 @@ export const mockInventory = [
     purchaseDate: '2024-01-10',
     cost: 16500,
     addedBy: '1',
-    addedByName: 'John Admin'
+    addedByName: 'John Admin',
+    addedAt: '2024-01-10T10:00:00Z'
   },
   {
     id: 'inv-7',
@@ -470,7 +481,77 @@ export const mockInventory = [
     purchaseDate: '2024-01-08',
     cost: 12000,
     addedBy: '1',
-    addedByName: 'John Admin'
+    addedByName: 'John Admin',
+    addedAt: '2024-01-08T10:00:00Z'
+  },
+  {
+    id: 'inv-8',
+    company: INVENTORY_COMPANIES.WAAREE_ENERGIES,
+    companyName: 'Waaree Energies',
+    serialNumber: 'WE001',
+    type: 'solar_panel',
+    model: 'Waaree 450W Mono PERC',
+    specifications: {
+      wattage: '450W',
+      efficiency: '22.1%',
+      dimensions: '2094x1038x35mm',
+      weight: '23kg'
+    },
+    status: INVENTORY_STATUS.IN_STOCK,
+    location: 'Chennai Warehouse',
+    warrantyExpiry: '2034-04-01',
+    purchaseDate: '2024-01-12',
+    cost: 19500,
+    addedBy: '1',
+    addedByName: 'John Admin',
+    addedAt: '2024-01-12T10:00:00Z'
+  },
+  {
+    id: 'inv-9',
+    company: INVENTORY_COMPANIES.LUMINOUS,
+    companyName: 'Luminous Power Technologies',
+    serialNumber: 'LUM002',
+    type: 'inverter',
+    model: 'Luminous Solar NXG 1800',
+    specifications: {
+      capacity: '1.8kW',
+      inputVoltage: '12V DC',
+      outputVoltage: '230V AC',
+      efficiency: '92%'
+    },
+    status: INVENTORY_STATUS.IN_STOCK,
+    location: 'Kolkata Warehouse',
+    warrantyExpiry: '2029-02-01',
+    purchaseDate: '2024-01-15',
+    cost: 25000,
+    addedBy: '1',
+    addedByName: 'John Admin',
+    addedAt: '2024-01-15T10:00:00Z'
+  },
+  {
+    id: 'inv-10',
+    company: INVENTORY_COMPANIES.ADANI_SOLAR,
+    companyName: 'Adani Solar',
+    serialNumber: 'GKA96M560H20200902RX025',
+    type: 'solar_panel',
+    model: 'Adani 540W Mono PERC',
+    specifications: {
+      wattage: '540W',
+      efficiency: '21.8%',
+      dimensions: '2279x1134x35mm',
+      weight: '27kg'
+    },
+    status: INVENTORY_STATUS.MAINTENANCE,
+    location: 'Hyderabad Service Center',
+    assignedTo: 'proj-2',
+    assignedDate: '2024-01-10',
+    assignedBy: '1',
+    warrantyExpiry: '2034-05-01',
+    purchaseDate: '2024-01-05',
+    cost: 22000,
+    addedBy: '1',
+    addedByName: 'John Admin',
+    addedAt: '2024-01-05T10:00:00Z'
   }
 ];
 

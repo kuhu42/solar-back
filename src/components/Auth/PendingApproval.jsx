@@ -1,7 +1,12 @@
 import React from 'react';
+import { useApp } from '../../context/AppContext.jsx';
+import { authService } from '../../lib/auth.js';
+import { dbService } from '../../lib/supabase.js';
 import { Clock, AlertCircle, Mail, Phone } from 'lucide-react';
 
 const PendingApproval = ({ user }) => {
+  const { setCurrentUser, showToast } = useApp();
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
@@ -80,7 +85,7 @@ const PendingApproval = ({ user }) => {
               try {
                 const session = await authService.getSession();
                 if (session?.user) {
-                  const profile = await dbService.getUserProfileById(session.user.id);
+                  const profile = await dbService.getUserById(session.user.id);
                   if (profile && profile.status === 'active') {
                     setCurrentUser(profile);
                     showToast('Account approved! Welcome to GreenSolar!');

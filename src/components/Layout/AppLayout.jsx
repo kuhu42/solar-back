@@ -17,7 +17,7 @@ import {
   DollarSign,
   Package,
   MessageSquare,
-  TrendingUp
+  TrendingUp,
   ToggleLeft,
   ToggleRight,
   Zap

@@ -1,607 +1,836 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import { authService } from '../../lib/auth.js';
+import { dbService } from '../../lib/supabase.js';
 import { USER_ROLES } from '../../types/index.js';
-import ModeToggle from '../Common/ModeToggle.jsx';
-import { 
-  Sun, 
-  Wind, 
-  Phone, 
-  Mail, 
-  Lock, 
-  User, 
-  MapPin,
-  GraduationCap,
-  CreditCard,
-  Eye,
-  EyeOff,
-  Loader
-} from 'lucide-react';
+import { Sun, User, Lock, UserPlus, MapPin, Upload, Camera, Eye, EyeOff } from 'lucide-react';
 
 const LoginScreen = () => {
-  const { loginDemo, loginLive, isLiveMode, toggleMode, authService, showToast } = useApp();
-  const [activeTab, setActiveTab] = useState('login');
-  const [loginMethod, setLoginMethod] = useState('demo');
+  const { setCurrentUser, showToast } = useApp();
+  const [activeMode, setActiveMode] = useState('login'); // 'login', 'signup', 'register-type', 'customer-form', 'professional-form'
+  const [selectedRole, setSelectedRole] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
-  // Login form state
+  // Login form
   const [loginForm, setLoginForm] = useState({
     email: '',
+    password: ''
+  });
+
+  // Signup form
+  const [signupForm, setSignupForm] = useState({
+    email: '',
     password: '',
+    confirmPassword: '',
+    name: '',
     phone: ''
   });
 
-  // Registration form state
-  const [registrationForm, setRegistrationForm] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    role: USER_ROLES.CUSTOMER,
-    location: '',
-    education: '',
+  // Customer registration form
+  const [customerForm, setCustomerForm] = useState({
+    serviceNumber: '',
     address: '',
-    bankDetails: {
-      accountNumber: '',
-      ifscCode: '',
-      bankName: ''
-    }
+    coordinates: { lat: null, lng: null },
+    moduleType: '',
+    kwCapacity: '',
+    houseType: '',
+    floors: '',
+    remarks: '',
+    customerPhoto: null,
+    signPhoto: null,
+    aadharPhoto: null,
+    panPhoto: null,
+    bankBookPhoto: null
   });
 
-  // OTP state
-  const [otpStep, setOtpStep] = useState(false);
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
+  // Professional registration form
+  const [professionalForm, setProfessionalForm] = useState({
+    role: '',
+    education: '',
+    address: '',
+    photo: null,
+    aadharPhoto: null,
+    panPhoto: null,
+    bankDetails: ''
+  });
 
-  const demoUsers = [
-    { email: 'admin@greensolar.com', role: 'Company Admin', name: 'John Admin' },
-    { email: 'agent@greensolar.com', role: 'Field Agent', name: 'Sarah Agent' },
-    { email: 'freelancer@greensolar.com', role: 'Freelancer', name: 'Mike Freelancer' },
-    { email: 'installer@greensolar.com', role: 'Installer', name: 'Tom Installer' },
-    { email: 'tech@greensolar.com', role: 'Technician', name: 'Lisa Technician' },
-    { email: 'customer@example.com', role: 'Customer', name: 'David Customer' }
-  ];
+  const [gettingLocation, setGettingLocation] = useState(false);
 
-  const handleDemoLogin = (email) => {
-    setLoading(true);
-    setTimeout(() => {
-      const user = loginDemo(email);
-      if (user) {
-        showToast(`Welcome ${user.name}! (Demo Mode)`);
-      } else {
-        showToast('Demo user not found', 'error');
-      }
-      setLoading(false);
-    }, 1000);
-  };
-
-  const handleLiveLogin = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (!authService.isAvailable()) {
-      showToast('Live mode not available - Supabase not configured', 'error');
-      return;
-    }
-
     setLoading(true);
+
     try {
-      if (loginMethod === 'phone') {
-        // Phone OTP login
-        if (!otpStep) {
-          await authService.signUpWithPhone(loginForm.phone, {});
-          setOtpSent(true);
-          setOtpStep(true);
-          showToast('OTP sent to your phone');
-        } else {
-          const result = await authService.verifyOTP(loginForm.phone, otp);
-          if (result.verified) {
-            showToast('Login successful!');
+      const { user } = await authService.signIn(loginForm.email, loginForm.password);
+      
+      if (user) {
+        // Get user profile from database
+        const profile = await dbService.getUserProfileById(user.id);
+        
+        if (profile) {
+          if (profile.status === 'rejected') {
+            showToast('Your account has been rejected. Please contact support.', 'error');
+            await authService.signOut();
+            return;
           }
+          
+          setCurrentUser(profile);
+          showToast('Login successful!');
+        } else {
+          showToast('User profile not found', 'error');
         }
-      } else {
-        // Email/password login
-        await loginLive(loginForm.email, loginForm.password);
-        showToast('Login successful!');
       }
     } catch (error) {
-      showToast(error.message, 'error');
-      if (error.message.includes('Invalid login credentials')) {
-        showToast('Try demo mode or register first', 'info');
-      }
+      console.error('Login error:', error);
+      showToast(error.message || 'Login failed', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRegistration = async (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
-    if (!authService.isAvailable()) {
-      showToast('Live mode not available - use demo mode', 'error');
+    
+    if (signupForm.password !== signupForm.confirmPassword) {
+      showToast('Passwords do not match', 'error');
+      return;
+    }
+
+    if (signupForm.password.length < 6) {
+      showToast('Password must be at least 6 characters', 'error');
       return;
     }
 
     setLoading(true);
+
     try {
-      if (!otpStep) {
-        // Send OTP
-        await authService.signUpWithPhone(registrationForm.phone, registrationForm);
-        setOtpSent(true);
-        setOtpStep(true);
-        showToast('OTP sent to your phone');
+      const userData = {
+        name: signupForm.name,
+        phone: signupForm.phone,
+        role: 'customer' // Default role, will be updated in form
+      };
+
+      await authService.signUp(signupForm.email, signupForm.password, userData);
+      
+      showToast('Account created! Please check your email for verification.');
+      setActiveMode('register-type');
+    } catch (error) {
+      console.error('Signup error:', error);
+      if (error.message?.includes('User already registered')) {
+        showToast('This email is already registered. Please use the login form instead.', 'error');
       } else {
-        // Verify OTP and create account
-        const result = await authService.verifyOTP(registrationForm.phone, otp);
-        if (result.verified && result.user) {
-          // Create user profile
-          await authService.createUserProfile(result.user.id, {
-            phone: registrationForm.phone,
-            name: registrationForm.name,
-            email: registrationForm.email,
-            role: registrationForm.role,
-            location: registrationForm.location,
-            education: registrationForm.education,
-            address: registrationForm.address,
-            bank_details: registrationForm.bankDetails
+        showToast(error.message || 'Signup failed', 'error');
+      }
+      // Don't change activeMode on error - stay on signup form
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetLocation = () => {
+    setGettingLocation(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setCustomerForm(prev => ({
+            ...prev,
+            coordinates: {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            }
+          }));
+          setGettingLocation(false);
+          showToast('Location captured successfully!');
+        },
+        (error) => {
+          setGettingLocation(false);
+          showToast('Unable to get location. Please enable location services.', 'error');
+        }
+      );
+    } else {
+      setGettingLocation(false);
+      showToast('Geolocation is not supported by this browser.', 'error');
+    }
+  };
+
+  const handleFileUpload = (field, file, formType = 'customer') => {
+    if (formType === 'customer') {
+      setCustomerForm(prev => ({ ...prev, [field]: file }));
+    } else {
+      setProfessionalForm(prev => ({ ...prev, [field]: file }));
+    }
+    showToast(`${file.name} uploaded successfully!`);
+  };
+
+  const handleCustomerSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        showToast('Please sign up first', 'error');
+        return;
+      }
+
+      const profileData = {
+        role: 'customer',
+        status: 'active', // Customers are auto-approved
+        location: customerForm.address
+      };
+
+      await authService.updateUserProfile(user.id, profileData);
+      showToast('Customer registration completed! You can now login.');
+      setActiveMode('login');
+    } catch (error) {
+      console.error('Customer registration error:', error);
+      showToast(error.message || 'Registration failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProfessionalSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const user = await authService.getCurrentUser();
+      if (!user) {
+        showToast('Please sign up first', 'error');
+        return;
+      }
+
+      const profileData = {
+        role: professionalForm.role,
+        status: 'pending', // Professionals need admin approval
+        education: professionalForm.education,
+        location: professionalForm.address,
+        bank_details: professionalForm.bankDetails
+      };
+
+      await authService.updateUserProfile(user.id, profileData);
+      showToast('Professional registration submitted! Please wait for admin approval.');
+      setActiveMode('login');
+    } catch (error) {
+      console.error('Professional registration error:', error);
+      showToast(error.message || 'Registration failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  // Add this function after handleProfessionalSubmit
+const createRealDemoUsers = async () => {
+    console.log('🚀 Starting demo user creation...');
+    
+    const demoUsers = [
+      {
+        email: 'admin@greensolar.com',
+        password: 'admin123',
+        userData: { name: 'John Admin', role: 'company', phone: '+1234567890' }
+      },
+      {
+        email: 'agent@greensolar.com', 
+        password: 'agent123',
+        userData: { name: 'Sarah Agent', role: 'agent', phone: '+1234567891' }
+      },
+      {
+        email: 'customer@example.com',
+        password: 'customer123',
+        userData: { name: 'David Customer', role: 'customer', phone: '+1234567895' }
+      }
+    ];
+
+    for (const user of demoUsers) {
+      try {
+        console.log(`Creating ${user.email}...`);
+        
+        // This creates a REAL user with proper UUID and password
+        const { data, error } = await authService.signUp(
+          user.email, 
+          user.password, 
+          user.userData
+        );
+        
+        if (data.user && !error) {
+          // Create matching database profile with REAL UUID
+          await dbService.createUserProfile({
+            id: data.user.id, // Real UUID from auth system
+            email: user.email,
+            name: user.userData.name,
+            role: user.userData.role,
+            phone: user.userData.phone,
+            status: 'active',
+            created_at: new Date().toISOString()
           });
           
-          showToast('Registration successful! Awaiting admin approval.');
+          console.log(`✅ Created real user: ${user.email}`);
         }
+      } catch (error) {
+        console.error(`❌ Failed to create ${user.email}:`, error.message);
       }
-    } catch (error) {
-      showToast(error.message, 'error');
-    } finally {
-      setLoading(false);
     }
+    
+    console.log('✨ Demo user creation complete!');
   };
 
-  const resetOtpFlow = () => {
-    setOtpStep(false);
-    setOtp('');
-    setOtpSent(false);
-  };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <Sun className="w-8 h-8 text-yellow-500" />
-            <Wind className="w-8 h-8 text-blue-500" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900">GreenSolar</h1>
-          <p className="text-gray-600 mt-2">Field Service Management System</p>
-        </div>
-
-        {/* Mode Toggle */}
-        <div className="mb-6">
-          <ModeToggle 
-            isLiveMode={isLiveMode} 
-            onToggle={toggleMode}
-            size="normal"
-            showLabels={true}
+  const FileUploadField = ({ label, field, formType = 'customer', accept = "image/*" }) => {
+    const form = formType === 'customer' ? customerForm : professionalForm;
+    const file = form[field];
+    
+    return (
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {label} *
+        </label>
+        <label className="flex items-center justify-center w-full px-4 py-3 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 border-2 border-dashed border-gray-300 cursor-pointer transition-colors">
+          {file ? (
+            <div className="flex items-center text-green-600">
+              <Upload className="w-5 h-5 mr-2" />
+              <span className="text-sm">{file.name} ✓</span>
+            </div>
+          ) : (
+            <div className="flex items-center">
+              <Camera className="w-5 h-5 mr-2" />
+              <span className="text-sm">Upload {label}</span>
+            </div>
+          )}
+          <input
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              if (file) {
+                handleFileUpload(field, file, formType);
+              }
+            }}
           />
-        </div>
+        </label>
+      </div>
+    );
+  };
 
-        {/* Main Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          {/* Tab Navigation */}
-          <div className="flex space-x-1 mb-6 bg-gray-100 rounded-lg p-1">
+  // Signup Screen
+  if (activeMode === 'signup') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+          <div className="text-center mb-8">
+            <img 
+              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+              alt="GreenSolar Logo" 
+              className="h-16 w-auto mx-auto mb-4"
+            />
+            <h1 className="text-2xl font-bold text-gray-900">Create Account</h1>
+            <p className="text-gray-600 mt-2">Sign up to get started</p>
+          </div>
+
+          <form onSubmit={handleSignup} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={signupForm.name}
+                onChange={(e) => setSignupForm(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={signupForm.phone}
+                onChange={(e) => setSignupForm(prev => ({ ...prev, phone: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="email"
+                  value={signupForm.email}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={signupForm.password}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
+                  className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                  minLength="6"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={signupForm.confirmPassword}
+                  onChange={(e) => setSignupForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                  minLength="6"
+                />
+              </div>
+            </div>
+
             <button
-              onClick={() => {
-                setActiveTab('login');
-                resetOtpFlow();
-              }}
-              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
-                activeTab === 'login'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50"
             >
-              Login
+              {loading ? 'Creating Account...' : 'Create Account'}
             </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Already have an account?{' '}
+              <button
+                onClick={() => setActiveMode('login')}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Sign In
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeMode === 'register-type') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+          <div className="text-center mb-8">
+            <img 
+              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+              alt="GreenSolar Logo" 
+              className="h-16 w-auto mx-auto mb-4"
+            />
+            <h1 className="text-2xl font-bold text-gray-900">Complete Your Registration</h1>
+            <p className="text-gray-600 mt-2">Choose your role to continue</p>
+          </div>
+
+          <div className="space-y-4">
             <button
-              onClick={() => {
-                setActiveTab('register');
-                resetOtpFlow();
-              }}
-              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
-                activeTab === 'register'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
+              onClick={() => setActiveMode('customer-form')}
+              className="w-full flex items-center justify-center px-6 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Register
+              <User className="w-5 h-5 mr-3" />
+              I'm a Customer
+            </button>
+            
+            <button
+              onClick={() => setActiveMode('professional-form')}
+              className="w-full flex items-center justify-center px-6 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <UserPlus className="w-5 h-5 mr-3" />
+              I'm a Professional
             </button>
           </div>
 
-          {activeTab === 'login' && (
-            <div className="space-y-6">
-              {/* Demo Mode Quick Login */}
-              {!isLiveMode && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Demo Quick Login</h3>
-                  <div className="grid gap-2">
-                    {demoUsers.map((user) => (
-                      <button
-                        key={user.email}
-                        onClick={() => handleDemoLogin(user.email)}
-                        disabled={loading}
-                        className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        <div className="text-left">
-                          <p className="font-medium text-gray-900">{user.name}</p>
-                          <p className="text-sm text-gray-600">{user.role}</p>
-                        </div>
-                        <User className="w-5 h-5 text-gray-400" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => setActiveMode('login')}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+            >
+              ← Back to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-              {/* Live Mode Login */}
-              {isLiveMode && (
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Live Login</h3>
-                  
-                  {/* Login Method Toggle */}
-                  <div className="flex space-x-1 mb-4 bg-gray-100 rounded-lg p-1">
-                    <button
-                      onClick={() => {
-                        setLoginMethod('phone');
-                        resetOtpFlow();
-                      }}
-                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-                        loginMethod === 'phone'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-gray-500'
-                      }`}
-                    >
-                      Phone OTP
-                    </button>
-                    <button
-                      onClick={() => {
-                        setLoginMethod('email');
-                        resetOtpFlow();
-                      }}
-                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
-                        loginMethod === 'email'
-                          ? 'bg-white text-blue-600 shadow-sm'
-                          : 'text-gray-500'
-                      }`}
-                    >
-                      Email/Password
-                    </button>
-                  </div>
+  if (activeMode === 'customer-form') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
+          <div className="text-center mb-8">
+            <img 
+              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+              alt="GreenSolar Logo" 
+              className="h-16 w-auto mx-auto mb-4"
+            />
+            <h1 className="text-2xl font-bold text-gray-900">Customer Registration</h1>
+            <p className="text-gray-600 mt-2">Complete your customer profile</p>
+          </div>
 
-                  <form onSubmit={handleLiveLogin} className="space-y-4">
-                    {loginMethod === 'phone' ? (
-                      <>
-                        {!otpStep ? (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Phone Number
-                            </label>
-                            <div className="relative">
-                              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                              <input
-                                type="tel"
-                                value={loginForm.phone}
-                                onChange={(e) => setLoginForm({...loginForm, phone: e.target.value})}
-                                placeholder="+91 98765 43210"
-                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                required
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Enter OTP
-                            </label>
-                            <input
-                              type="text"
-                              value={otp}
-                              onChange={(e) => setOtp(e.target.value)}
-                              placeholder="123456"
-                              maxLength="6"
-                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg font-mono"
-                              required
-                            />
-                            <p className="text-sm text-gray-500 mt-2">
-                              OTP sent to {loginForm.phone}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={resetOtpFlow}
-                              className="text-sm text-blue-600 hover:text-blue-700 mt-1"
-                            >
-                              Change phone number
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Email
-                          </label>
-                          <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input
-                              type="email"
-                              value={loginForm.email}
-                              onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
-                              placeholder="your@email.com"
-                              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              required
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Password
-                          </label>
-                          <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input
-                              type={showPassword ? 'text' : 'password'}
-                              value={loginForm.password}
-                              onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
-                              placeholder="Enter password"
-                              className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              required
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                            >
-                              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                    >
-                      {loading ? (
-                        <Loader className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <>
-                          {loginMethod === 'phone' 
-                            ? (otpStep ? 'Verify OTP' : 'Send OTP')
-                            : 'Sign In'
-                          }
-                        </>
-                      )}
-                    </button>
-                  </form>
-                </div>
-              )}
+          <form onSubmit={handleCustomerSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Service Number *</label>
+              <input
+                type="text"
+                value={customerForm.serviceNumber}
+                onChange={(e) => setCustomerForm(prev => ({ ...prev, serviceNumber: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
             </div>
-          )}
 
-          {activeTab === 'register' && isLiveMode && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">Create Account</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
+              <textarea
+                value={customerForm.address}
+                onChange={(e) => setCustomerForm(prev => ({ ...prev, address: e.target.value }))}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Location Coordinates *</label>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={customerForm.coordinates.lat && customerForm.coordinates.lng 
+                    ? `${customerForm.coordinates.lat}, ${customerForm.coordinates.lng}` 
+                    : ''}
+                  placeholder="Coordinates will appear here"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50"
+                  readOnly
+                />
+                <button
+                  type="button"
+                  onClick={handleGetLocation}
+                  disabled={gettingLocation}
+                  className="flex items-center px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <MapPin className="w-4 h-4 mr-2" />
+                  {gettingLocation ? 'Getting...' : 'Get Location'}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Module Type *</label>
+                <select
+                  value={customerForm.moduleType}
+                  onChange={(e) => setCustomerForm(prev => ({ ...prev, moduleType: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select Module Type</option>
+                  <option value="monocrystalline">Monocrystalline</option>
+                  <option value="polycrystalline">Polycrystalline</option>
+                  <option value="thin-film">Thin Film</option>
+                  <option value="bifacial">Bifacial</option>
+                </select>
+              </div>
               
-              {!otpStep ? (
-                <form onSubmit={handleRegistration} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Full Name
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="text"
-                        value={registrationForm.name}
-                        onChange={(e) => setRegistrationForm({...registrationForm, name: e.target.value})}
-                        placeholder="Enter your full name"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="tel"
-                        value={registrationForm.phone}
-                        onChange={(e) => setRegistrationForm({...registrationForm, phone: e.target.value})}
-                        placeholder="+91 98765 43210"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email (Optional)
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="email"
-                        value={registrationForm.email}
-                        onChange={(e) => setRegistrationForm({...registrationForm, email: e.target.value})}
-                        placeholder="your@email.com"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Role
-                    </label>
-                    <select
-                      value={registrationForm.role}
-                      onChange={(e) => setRegistrationForm({...registrationForm, role: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value={USER_ROLES.CUSTOMER}>Customer</option>
-                      <option value={USER_ROLES.FREELANCER}>Freelancer</option>
-                      <option value={USER_ROLES.INSTALLER}>Installer</option>
-                      <option value={USER_ROLES.TECHNICIAN}>Technician</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Location
-                    </label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="text"
-                        value={registrationForm.location}
-                        onChange={(e) => setRegistrationForm({...registrationForm, location: e.target.value})}
-                        placeholder="City, State"
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Additional fields for professionals */}
-                  {registrationForm.role !== USER_ROLES.CUSTOMER && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Education/Certification
-                        </label>
-                        <div className="relative">
-                          <GraduationCap className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                          <input
-                            type="text"
-                            value={registrationForm.education}
-                            onChange={(e) => setRegistrationForm({...registrationForm, education: e.target.value})}
-                            placeholder="Your qualifications"
-                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Bank Account Number
-                        </label>
-                        <div className="relative">
-                          <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                          <input
-                            type="text"
-                            value={registrationForm.bankDetails.accountNumber}
-                            onChange={(e) => setRegistrationForm({
-                              ...registrationForm, 
-                              bankDetails: {
-                                ...registrationForm.bankDetails,
-                                accountNumber: e.target.value
-                              }
-                            })}
-                            placeholder="Account number"
-                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center"
-                  >
-                    {loading ? (
-                      <Loader className="w-5 h-5 animate-spin" />
-                    ) : (
-                      'Send OTP'
-                    )}
-                  </button>
-                </form>
-              ) : (
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-4">Verify Your Phone</h4>
-                  <form onSubmit={handleRegistration} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Enter OTP
-                      </label>
-                      <input
-                        type="text"
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value)}
-                        placeholder="123456"
-                        maxLength="6"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg font-mono"
-                        required
-                      />
-                      <p className="text-sm text-gray-500 mt-2">
-                        OTP sent to {registrationForm.phone}
-                      </p>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center"
-                    >
-                      {loading ? (
-                        <Loader className="w-5 h-5 animate-spin" />
-                      ) : (
-                        'Complete Registration'
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={resetOtpFlow}
-                      className="w-full text-blue-600 hover:text-blue-700 py-2"
-                    >
-                      Back to phone entry
-                    </button>
-                  </form>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">KW Capacity *</label>
+                <input
+                  type="number"
+                  value={customerForm.kwCapacity}
+                  onChange={(e) => setCustomerForm(prev => ({ ...prev, kwCapacity: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">House Type *</label>
+                <select
+                  value={customerForm.houseType}
+                  onChange={(e) => setCustomerForm(prev => ({ ...prev, houseType: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select House Type</option>
+                  <option value="apartment">Apartment</option>
+                  <option value="independent">Independent House</option>
+                  <option value="villa">Villa</option>
+                  <option value="commercial">Commercial</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Number of Floors *</label>
+                <input
+                  type="number"
+                  value={customerForm.floors}
+                  onChange={(e) => setCustomerForm(prev => ({ ...prev, floors: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
             </div>
-          )}
 
-          {/* Demo Mode Notice */}
-          {!isLiveMode && (
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Demo Mode:</strong> Click any user above to instantly login and explore the system. 
-                No registration required.
-              </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Customer Requirements & Remarks</label>
+              <textarea
+                value={customerForm.remarks}
+                onChange={(e) => setCustomerForm(prev => ({ ...prev, remarks: e.target.value }))}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Any specific requirements or remarks..."
+              />
             </div>
-          )}
 
-          {/* Live Mode Notice */}
-          {isLiveMode && !authService.isAvailable() && (
-            <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-              <p className="text-sm text-orange-800">
-                <strong>Supabase Not Configured:</strong> Please set up your Supabase project and add environment variables to use live mode.
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FileUploadField label="Customer Photo" field="customerPhoto" />
+              <FileUploadField label="Signature Photo" field="signPhoto" />
+              <FileUploadField label="Aadhar Card Photo" field="aadharPhoto" />
+              <FileUploadField label="PAN Card Photo" field="panPhoto" />
+              <FileUploadField label="Bank Book Photo" field="bankBookPhoto" />
             </div>
-          )}
+
+            <div className="flex items-center space-x-4 pt-6">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+              >
+                {loading ? 'Submitting...' : 'Complete Registration'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMode('register-type')}
+                className="flex-1 bg-gray-300 text-gray-700 py-3 px-6 rounded-lg hover:bg-gray-400 font-medium"
+              >
+                Back
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeMode === 'professional-form') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8">
+          <div className="text-center mb-8">
+            <img 
+              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+              alt="GreenSolar Logo" 
+              className="h-16 w-auto mx-auto mb-4"
+            />
+            <h1 className="text-2xl font-bold text-gray-900">Professional Registration</h1>
+            <p className="text-gray-600 mt-2">Join our team of professionals</p>
+          </div>
+
+          <form onSubmit={handleProfessionalSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+              <select
+                value={professionalForm.role}
+                onChange={(e) => setProfessionalForm(prev => ({ ...prev, role: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              >
+                <option value="">Select Role</option>
+                <option value="agent">Agent</option>
+                <option value="freelancer">Freelancer</option>
+                <option value="installer">Installer</option>
+                <option value="technician">Technician</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Education Qualification *</label>
+              <input
+                type="text"
+                value={professionalForm.education}
+                onChange={(e) => setProfessionalForm(prev => ({ ...prev, education: e.target.value }))}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
+              <textarea
+                value={professionalForm.address}
+                onChange={(e) => setProfessionalForm(prev => ({ ...prev, address: e.target.value }))}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Bank Details *</label>
+              <textarea
+                value={professionalForm.bankDetails}
+                onChange={(e) => setProfessionalForm(prev => ({ ...prev, bankDetails: e.target.value }))}
+                rows={3}
+                placeholder="Account Number, IFSC Code, Bank Name, Branch"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FileUploadField label="Profile Photo" field="photo" formType="professional" />
+              <FileUploadField label="Aadhar Card Photo" field="aadharPhoto" formType="professional" />
+              <FileUploadField label="PAN Card Photo" field="panPhoto" formType="professional" />
+            </div>
+
+            <div className="flex items-center space-x-4 pt-6">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 font-medium disabled:opacity-50"
+              >
+                {loading ? 'Submitting...' : 'Submit for Approval'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMode('register-type')}
+                className="flex-1 bg-gray-300 text-gray-700 py-3 px-6 rounded-lg hover:bg-gray-400 font-medium"
+              >
+                Back
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Default login screen
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+        <div className="text-center mb-8">
+          <img 
+            src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
+            alt="GreenSolar Logo" 
+            className="h-16 w-auto mx-auto mb-4"
+          />
+          <h1 className="text-3xl font-bold text-gray-900">Welcome Back</h1>
+          <p className="text-gray-600 mt-2">Sign in to your account</p>
         </div>
 
-        {/* Footer */}
-        <div className="text-center mt-8 text-sm text-gray-500">
-          <p>© 2024 GreenSolar. All rights reserved.</p>
-          <p className="mt-1">Solar & Wind Energy Solutions</p>
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Email Address
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="email"
+                value={loginForm.email}
+                onChange={(e) => setLoginForm(prev => ({ ...prev, email: e.target.value }))}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type={showPassword ? "text" : "password"}
+                value={loginForm.password}
+                onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter your password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50"
+          >
+            {loading ? 'Signing In...' : 'Sign In'}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            Don't have an account?{' '}
+            <button
+              onClick={() => setActiveMode('signup')}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Sign Up
+            </button>
+          </p>
+        </div>
+
+
+
+      {/* Add this button ABOVE the existing demo accounts section */}
+        <div className="mt-6 text-center">
+          <button
+            onClick={createRealDemoUsers}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium mb-4"
+          >
+            🔧 Create Real Demo Users
+          </button>
+        </div>
+
+        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+          <h3 className="text-sm font-medium text-gray-900 mb-2">Demo Accounts:</h3>
+          <div className="text-xs text-gray-600 space-y-1">
+            <p>• Admin: admin@greensolar.com (password: admin123)</p>
+            <p>• Agent: agent@greensolar.com (password: agent123)</p>
+            <p>• Customer: customer@example.com (password: customer123)</p>
+          </div>
         </div>
       </div>
     </div>

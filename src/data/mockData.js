@@ -3,17 +3,20 @@ import { USER_ROLES, USER_STATUS, PROJECT_STATUS, TASK_STATUS, INVENTORY_STATUS,
 export const mockUsers = [
   {
     id: '1',
+    email: 'admin@solartech.com',
     email: 'admin@greensolar.com',
     name: 'John Admin',
     role: USER_ROLES.COMPANY,
     status: USER_STATUS.ACTIVE,
     phone: '+1234567890',
+    location: 'Head Office',
     location: 'Mumbai Head Office',
     avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
     customerRefNumber: null
   },
   {
     id: '2',
+    email: 'agent@solartech.com',
     email: 'agent@greensolar.com',
     name: 'Sarah Agent',
     role: USER_ROLES.AGENT,
@@ -25,6 +28,7 @@ export const mockUsers = [
   },
   {
     id: '3',
+    email: 'freelancer@solartech.com',
     email: 'freelancer@greensolar.com',
     name: 'Mike Freelancer',
     role: 'middleman', // Will be assigned role by admin
@@ -36,6 +40,7 @@ export const mockUsers = [
   },
   {
     id: '4',
+    email: 'installer@solartech.com',
     email: 'installer@greensolar.com',
     name: 'Tom Installer',
     role: USER_ROLES.INSTALLER,
@@ -47,6 +52,7 @@ export const mockUsers = [
   },
   {
     id: '5',
+    email: 'tech@solartech.com',
     email: 'tech@greensolar.com',
     name: 'Lisa Technician',
     role: 'middleman', // Will be assigned role by admin

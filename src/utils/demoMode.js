@@ -1,531 +1,763 @@
-// Demo mode utilities and mock data management
+import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import { dbService, supabase } from '../lib/supabase.js';
+import { authService } from '../lib/auth.js';
+import { USER_STATUS } from '../types/index.js';
+import { demoStateManager } from '../utils/demoMode.js';
+import { demoStateManager } from '../utils/demoMode.js';
+import { 
+  mockUsers, 
+  mockProjects, 
+  mockTasks, 
+  mockAttendance, 
+  mockInventory, 
+  mockLeads, 
+  mockComplaints, 
+  mockInvoices, 
+  mockNotifications 
+} from '../data/mockData.js';
 
-export const DEMO_USERS = {
-  ADMIN: {
-    id: 'demo-admin',
-    email: 'admin@greensolar.com',
-    name: 'John Admin',
-    role: 'admin',
-    status: 'active',
-    phone: '+91 98765 00001',
-    location: 'Mumbai Head Office',
-    avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-  },
-  AGENT: {
-    id: 'demo-agent',
-    email: 'agent@greensolar.com',
-    name: 'Sarah Agent',
-    role: 'agent',
-    status: 'active',
-    phone: '+91 98765 00002',
-    location: 'Mumbai Field Office',
-    avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-  },
-  FREELANCER: {
-    id: 'demo-freelancer',
-    email: 'freelancer@greensolar.com',
-    name: 'Mike Freelancer',
-    role: 'freelancer',
-    status: 'active',
-    phone: '+91 98765 00003',
-    location: 'Bangalore Remote',
-    avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-  },
-  INSTALLER: {
-    id: 'demo-installer',
-    email: 'installer@greensolar.com',
-    name: 'Tom Installer',
-    role: 'installer',
-    status: 'active',
-    phone: '+91 98765 00004',
-    location: 'Delhi Installation Team',
-    avatar: 'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-  },
-  TECHNICIAN: {
-    id: 'demo-technician',
-    email: 'tech@greensolar.com',
-    name: 'Lisa Technician',
-    role: 'technician',
-    status: 'active',
-    phone: '+91 98765 00005',
-    location: 'Pune Maintenance Team',
-    avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-  },
-  CUSTOMER: {
-    id: 'demo-customer',
-    email: 'customer@example.com',
-    name: 'David Customer',
-    role: 'customer',
-    status: 'active',
-    phone: '+91 98765 00006',
-    location: 'Bandra West, Mumbai',
-    customerRefNumber: 'CUST-2024-001',
-    avatar: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop'
-  }
+const AppContext = createContext();
+
+const initialState = {
+  currentUser: null,
+  users: [],
+  projects: [],
+  tasks: [],
+  attendance: [],
+  inventory: [],
+  leads: [],
+  complaints: [],
+  invoices: [],
+  notifications: [],
+  commissions: [],
+  loading: false,
+  error: null,
+  isLiveMode: dbService.isAvailable(), // Auto-detect based on Supabase availability
+  realTimeSubscriptions: []
 };
 
-// Demo mode state management
-export class DemoStateManager {
-  constructor() {
-    this.state = this.getInitialState();
-    this.listeners = [];
-  }
-
-  getInitialState() {
-    return {
-      users: Object.values(DEMO_USERS),
-      projects: this.generateDemoProjects(),
-      tasks: this.generateDemoTasks(),
-      leads: this.generateDemoLeads(),
-      complaints: this.generateDemoComplaints(),
-      attendance: this.generateDemoAttendance(),
-      inventory: this.generateDemoInventory(),
-      invoices: this.generateDemoInvoices(),
-      commissions: this.generateDemoCommissions(),
-      notifications: this.generateDemoNotifications()
-    };
-  }
-
-  generateDemoProjects() {
-    return [
-      {
-        id: 'demo-proj-1',
-        customerRefNumber: 'CUST-2024-001',
-        title: 'Residential Solar Installation - Mumbai Bandra West',
-        customerId: 'demo-customer',
-        customerName: 'David Customer',
-        status: 'in_progress',
-        pipelineStage: 'installation_complete',
-        type: 'solar',
-        location: 'Bandra West, Mumbai',
-        assignedTo: 'demo-installer',
-        assignedToName: 'Tom Installer',
-        serialNumbers: ['SP001', 'SP002', 'INV001'],
-        startDate: '2024-01-15',
-        value: 250000,
-        description: '5kW residential solar panel installation',
-        coordinates: { lat: 19.0760, lng: 72.8777 },
-        createdAt: '2024-01-15T10:00:00Z'
-      },
-      {
-        id: 'demo-proj-2',
-        customerRefNumber: 'CUST-2024-002',
-        title: 'Commercial Solar Installation - Bangalore',
-        customerId: 'demo-customer-2',
-        customerName: 'Green Energy Corp',
-        status: 'approved',
-        pipelineStage: 'ready_for_installation',
-        type: 'solar',
-        location: 'Whitefield, Bangalore',
-        assignedTo: 'demo-agent',
-        assignedToName: 'Sarah Agent',
-        serialNumbers: ['SP005', 'SP006'],
-        startDate: '2024-02-01',
-        value: 1500000,
-        description: '25kW commercial solar installation',
-        coordinates: { lat: 12.9716, lng: 77.5946 },
-        createdAt: '2024-01-20T14:30:00Z'
-      }
-    ];
-  }
-
-  generateDemoTasks() {
-    return [
-      {
-        id: 'demo-task-1',
-        customerRefNumber: 'CUST-2024-001',
-        projectId: 'demo-proj-1',
-        title: 'Install Solar Panels',
-        description: 'Mount and connect solar panels on rooftop',
-        assignedTo: 'demo-installer',
-        assignedToName: 'Tom Installer',
-        status: 'in_progress',
-        type: 'installation',
-        priority: 'high',
-        dueDate: '2024-01-20',
-        serialNumber: 'SP001',
-        createdAt: '2024-01-15T10:00:00Z'
-      }
-    ];
-  }
-
-  generateDemoLeads() {
-    return [
-      {
-        id: 'demo-lead-1',
-        customerName: 'Alice Johnson',
-        email: 'alice@example.com',
-        phone: '+91 98765 43211',
-        location: 'Koramangala, Pune',
-        type: 'solar',
-        status: 'new',
-        estimatedValue: 300000,
-        notes: 'Interested in 6kW residential system',
-        source: 'website',
-        createdAt: '2024-01-14T09:00:00Z'
-      }
-    ];
-  }
-
-  generateDemoComplaints() {
-    return [
-      {
-        id: 'demo-comp-1',
-        customerRefNumber: 'CUST-2024-001',
-        customerId: 'demo-customer',
-        customerName: 'David Customer',
-        title: 'Solar Panel Not Working',
-        description: 'One panel stopped generating power after storm',
-        status: 'open',
-        priority: 'high',
-        assignedTo: 'demo-technician',
-        assignedToName: 'Lisa Technician',
-        serialNumber: 'SP003',
-        createdAt: '2024-01-14T16:30:00Z'
-      }
-    ];
-  }
-
-  generateDemoAttendance() {
-    const today = new Date().toISOString().split('T')[0];
-    return [
-      {
-        id: 'demo-att-1',
-        userId: 'demo-agent',
-        userName: 'Sarah Agent',
-        date: today,
-        checkIn: '08:30',
-        checkOut: null,
-        location: 'Mumbai Field Office',
-        coordinates: { lat: 19.0760, lng: 72.8777 },
-        createdAt: new Date().toISOString()
-      }
-    ];
-  }
-
-  generateDemoInventory() {
-    return [
-      {
-        id: 'demo-inv-1',
-        serialNumber: 'SP001',
-        type: 'solar_panel',
-        model: 'SolarMax 300W',
-        status: 'assigned',
-        location: 'Mumbai Warehouse',
-        assignedTo: 'demo-proj-1',
-        warrantyExpiry: '2034-01-15',
-        cost: 15000,
-        createdAt: '2024-01-01T00:00:00Z'
-      }
-    ];
-  }
-
-  generateDemoInvoices() {
-    return [
-      {
-        id: 'demo-inv-1',
-        customerRefNumber: 'CUST-2024-001',
-        projectId: 'demo-proj-1',
-        customerId: 'demo-customer',
-        customerName: 'David Customer',
-        invoiceNumber: 'INV-202401-0001',
-        amount: 250000,
-        taxAmount: 45000,
-        totalAmount: 295000,
-        status: 'sent',
-        dueDate: '2024-02-15',
-        createdAt: '2024-01-15T12:00:00Z',
-        items: [
-          {
-            id: 'demo-item-1',
-            description: 'Solar Panel Installation',
-            quantity: 1,
-            unitPrice: 200000,
-            total: 200000
-          },
-          {
-            id: 'demo-item-2',
-            description: 'Inverter Installation',
-            quantity: 1,
-            unitPrice: 50000,
-            total: 50000
+function appReducer(state, action) {
+  switch (action.type) {
+    case 'SET_LIVE_MODE':
+      return { ...state, isLiveMode: action.payload };
+    
+    case 'SET_CURRENT_USER':
+      return { ...state, currentUser: action.payload };
+    
+    case 'SET_USERS':
+      return { ...state, users: action.payload };
+    
+    case 'SET_PROJECTS':
+      return { ...state, projects: action.payload };
+    
+    case 'SET_TASKS':
+      return { ...state, tasks: action.payload };
+    
+    case 'SET_ATTENDANCE':
+      return { ...state, attendance: action.payload };
+    
+    case 'SET_INVENTORY':
+      return { ...state, inventory: action.payload };
+    
+    case 'SET_LEADS':
+      return { ...state, leads: action.payload };
+    
+    case 'SET_COMPLAINTS':
+      return { ...state, complaints: action.payload };
+    
+    case 'SET_INVOICES':
+      return { ...state, invoices: action.payload };
+    
+    case 'SET_NOTIFICATIONS':
+      return { ...state, notifications: action.payload };
+    
+    case 'SET_COMMISSIONS':
+      return { ...state, commissions: action.payload };
+    
+    case 'LOGOUT':
+      return { 
+        ...state, 
+        currentUser: null,
+        realTimeSubscriptions: []
+      };
+    
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    
+    case 'ADD_SUBSCRIPTION':
+      return { 
+        ...state, 
+        realTimeSubscriptions: [...state.realTimeSubscriptions, action.payload] 
+      };
+    
+    case 'CLEAR_SUBSCRIPTIONS':
+      return { ...state, realTimeSubscriptions: [] };
+    
+    // Real-time updates
+    case 'REALTIME_UPDATE':
+      const { table, eventType, record } = action.payload;
+      
+      switch (table) {
+        case 'projects':
+          if (eventType === 'INSERT') {
+            return { ...state, projects: [record, ...state.projects] };
+          } else if (eventType === 'UPDATE') {
+            return {
+              ...state,
+              projects: state.projects.map(p => p.id === record.id ? record : p)
+            };
+          } else if (eventType === 'DELETE') {
+            return {
+              ...state,
+              projects: state.projects.filter(p => p.id !== record.id)
+            };
           }
-        ]
+          break;
+        
+        case 'tasks':
+          if (eventType === 'INSERT') {
+            return { ...state, tasks: [record, ...state.tasks] };
+          } else if (eventType === 'UPDATE') {
+            return {
+              ...state,
+              tasks: state.tasks.map(t => t.id === record.id ? record : t)
+            };
+          }
+          break;
+        
+        case 'notifications':
+          if (eventType === 'INSERT') {
+            return { ...state, notifications: [record, ...state.notifications] };
+          } else if (eventType === 'UPDATE') {
+            return {
+              ...state,
+              notifications: state.notifications.map(n => n.id === record.id ? record : n)
+            };
+          }
+          break;
+        
+        default:
+          return state;
       }
-    ];
-  }
-
-  generateDemoCommissions() {
-    return [
-      {
-        id: 'demo-comm-1',
-        freelancerId: 'demo-freelancer',
-        freelancerName: 'Mike Freelancer',
-        leadId: 'demo-lead-1',
-        commissionType: 'lead_conversion',
-        baseAmount: 300000,
-        commissionRate: 0.10,
-        commissionAmount: 30000,
-        status: 'approved',
-        createdAt: '2024-01-14T18:00:00Z'
-      }
-    ];
-  }
-
-  generateDemoNotifications() {
-    return [
-      {
-        id: 'demo-notif-1',
-        userId: 'demo-admin',
-        title: 'New User Registration',
-        message: 'Mike Freelancer has registered and is pending approval',
-        type: 'info',
-        read: false,
-        createdAt: '2024-01-15T10:30:00Z'
-      }
-    ];
-  }
-
-  // State management methods
-  subscribe(listener) {
-    this.listeners.push(listener);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
-    };
-  }
-
-  notify() {
-    this.listeners.forEach(listener => listener(this.state));
-  }
-
-  updateState(updates) {
-    this.state = { ...this.state, ...updates };
-    this.notify();
-  }
-
-  // CRUD operations for demo mode
-  addItem(table, item) {
-    const items = [...this.state[table], item];
-    this.updateState({ [table]: items });
-  }
-
-  updateItem(table, id, updates) {
-    const items = this.state[table].map(item => 
-      item.id === id ? { ...item, ...updates } : item
-    );
-    this.updateState({ [table]: items });
-  }
-
-  deleteItem(table, id) {
-    const items = this.state[table].filter(item => item.id !== id);
-    this.updateState({ [table]: items });
-  }
-
-  getItems(table, filters = {}) {
-    let items = this.state[table] || [];
+      return state;
     
-    // Apply filters
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        items = items.filter(item => item[key] === value);
-      }
-    });
+    // Legacy actions for demo mode
+    case 'UPDATE_USER_STATUS':
+      return {
+        ...state,
+        users: state.users.map(user =>
+          user.id === action.payload.userId
+            ? { ...user, status: action.payload.status, role: action.payload.role || user.role }
+            : user
+        )
+      };
     
-    return items;
+    case 'ADD_ATTENDANCE':
+      return {
+        ...state,
+        attendance: [...state.attendance, action.payload]
+      };
+    
+    case 'UPDATE_ATTENDANCE':
+      return {
+        ...state,
+        attendance: state.attendance.map(att =>
+          att.id === action.payload.id ? { ...att, ...action.payload } : att
+        )
+      };
+    
+    case 'UPDATE_PROJECT_STATUS':
+      return {
+        ...state,
+        projects: state.projects.map(project =>
+          project.id === action.payload.projectId
+            ? { ...project, status: action.payload.status }
+            : project
+        )
+      };
+    
+    case 'UPDATE_PROJECT_PIPELINE':
+      return {
+        ...state,
+        projects: state.projects.map(project =>
+          project.id === action.payload.projectId
+            ? { ...project, pipelineStage: action.payload.pipelineStage }
+            : project
+        )
+      };
+    
+    case 'UPDATE_TASK_STATUS':
+      return {
+        ...state,
+        tasks: state.tasks.map(task =>
+          task.id === action.payload.taskId
+            ? { ...task, status: action.payload.status, ...action.payload.updates }
+            : task
+        )
+      };
+    
+    case 'ADD_LEAD':
+      return {
+        ...state,
+        leads: [...state.leads, action.payload]
+      };
+    
+    case 'UPDATE_LEAD':
+      return {
+        ...state,
+        leads: state.leads.map(lead =>
+          lead.id === action.payload.id ? { ...lead, ...action.payload.updates } : lead
+        )
+      };
+    
+    case 'ADD_COMPLAINT':
+      return {
+        ...state,
+        complaints: [...state.complaints, action.payload]
+      };
+    
+    case 'UPDATE_COMPLAINT_STATUS':
+      return {
+        ...state,
+        complaints: state.complaints.map(complaint =>
+          complaint.id === action.payload.complaintId
+            ? { ...complaint, status: action.payload.status }
+            : complaint
+        )
+      };
+    
+    default:
+      return state;
   }
 }
 
-// Global demo state manager instance
-export const demoStateManager = new DemoStateManager();
+export function AppProvider({ children }) {
+  const [state, dispatch] = useReducer(appReducer, initialState);
 
-// Mock OCR service for demo
-export const mockOCRService = {
-  async extractSerialNumber(imageFile) {
-    // Simulate OCR processing delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Return mock serial numbers
-    const mockSerials = [
-      'GKA96M560H20200902RX025',
-      'GKA96M560H20200902RX026',
-      'SP001-2024-001',
-      'INV-5000-2024-001',
-      'BAT-LITHIUM-2024-001'
-    ];
-    
-    return mockSerials[Math.floor(Math.random() * mockSerials.length)];
-  },
+  // Initialize auth and load data
+  useEffect(() => {
+    initializeAuth();
+    if (state.isLiveMode && dbService.isAvailable()) {
+      loadLiveData();
+      setupRealTimeSubscriptions();
+    } else {
+      loadDemoData();
+    }
 
-  async extractTextFromImage(imageFile) {
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    return {
-      text: 'Sample extracted text from image',
-      confidence: 0.95,
-      boundingBoxes: []
+    return () => {
+      // Cleanup subscriptions
+      state.realTimeSubscriptions.forEach(sub => {
+        if (sub && typeof sub.unsubscribe === 'function') {
+          sub.unsubscribe();
+        }
+      });
     };
+  }, [state.isLiveMode]);
+
+  const initializeAuth = async () => {
+    if (!dbService.isAvailable()) {
+      console.log('Running in demo mode - Supabase not configured');
+      return;
+    }
+    
+    if (!dbService.isAvailable()) {
+      console.log('Running in demo mode - Supabase not configured');
+      return;
+    }
+    
+    try {
+      // Check for existing session
+      const session = await authService.getSession();
+      if (session?.user) {
+        const profile = await authService.getUserProfileById(session.user.id);
+        if (profile) {
+          dispatch({ type: 'SET_CURRENT_USER', payload: profile });
+        }
+      }
+
+      // Listen for auth changes
+      authService.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          const profile = await authService.getUserProfileById(session.user.id);
+          if (profile) {
+            dispatch({ type: 'SET_CURRENT_USER', payload: profile });
+            
+            // Track login event
+            if (state.isLiveMode) {
+              await dbService.trackEvent('user_login', {
+                userId: profile.id,
+                role: profile.role
+              });
+            }
+          }
+        } else if (event === 'SIGNED_OUT') {
+          dispatch({ type: 'LOGOUT' });
+          dispatch({ type: 'CLEAR_SUBSCRIPTIONS' });
+        }
+      });
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+    }
+  };
+
+  const loadLiveData = async () => {
+    if (!dbService.isAvailable()) {
+      console.warn('Cannot load live data - Supabase not available');
+      loadDemoData();
+      return;
+    }
+    
+    if (!dbService.isAvailable()) {
+      console.warn('Cannot load live data - Supabase not available');
+      loadDemoData();
+      return;
+    }
+    
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      const [
+        users, projects, tasks, attendance, inventory, 
+        leads, complaints, invoices, commissions
+      ] = await Promise.all([
+        dbService.getUserProfiles(),
+        dbService.getProjects(),
+        dbService.getTasks(),
+        dbService.getAttendance(),
+        dbService.getInventory(),
+        dbService.getLeads(),
+        dbService.getComplaints(),
+        dbService.getInvoices(),
+        dbService.getCommissions()
+      ]);
+
+      dispatch({ type: 'SET_USERS', payload: users });
+      dispatch({ type: 'SET_PROJECTS', payload: projects });
+      dispatch({ type: 'SET_TASKS', payload: tasks });
+      dispatch({ type: 'SET_ATTENDANCE', payload: attendance });
+      dispatch({ type: 'SET_INVENTORY', payload: inventory });
+      dispatch({ type: 'SET_LEADS', payload: leads });
+      dispatch({ type: 'SET_COMPLAINTS', payload: complaints });
+      dispatch({ type: 'SET_INVOICES', payload: invoices });
+      dispatch({ type: 'SET_COMMISSIONS', payload: commissions });
+
+      // Load notifications for current user
+      if (state.currentUser) {
+        const notifications = await dbService.getNotifications(state.currentUser.id);
+        dispatch({ type: 'SET_NOTIFICATIONS', payload: notifications });
+      }
+      
+    } catch (error) {
+      console.error('Error loading live data:', error);
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+      // Fallback to demo data if live data fails
+      console.log('Falling back to demo data');
+      loadDemoData();
+      // Fallback to demo data if live data fails
+      console.log('Falling back to demo data');
+      loadDemoData();
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const loadDemoData = () => {
+    console.log('Loading demo data');
+    console.log('Loading demo data');
+    dispatch({ type: 'SET_USERS', payload: mockUsers });
+    dispatch({ type: 'SET_PROJECTS', payload: mockProjects });
+    dispatch({ type: 'SET_TASKS', payload: mockTasks });
+    dispatch({ type: 'SET_ATTENDANCE', payload: mockAttendance });
+    dispatch({ type: 'SET_INVENTORY', payload: mockInventory });
+    dispatch({ type: 'SET_LEADS', payload: mockLeads });
+    dispatch({ type: 'SET_COMPLAINTS', payload: mockComplaints });
+    dispatch({ type: 'SET_INVOICES', payload: mockInvoices });
+    dispatch({ type: 'SET_NOTIFICATIONS', payload: mockNotifications });
+    dispatch({ type: 'SET_COMMISSIONS', payload: [] });
+  };
+
+  const setupRealTimeSubscriptions = () => {
+    if (!state.isLiveMode || !dbService.isAvailable()) return;
+
+    // Subscribe to projects changes
+    const projectsSub = dbService.subscribeToTable('projects', (payload) => {
+      dispatch({
+        type: 'REALTIME_UPDATE',
+        payload: {
+          table: 'projects',
+          eventType: payload.eventType,
+          record: payload.new || payload.old
+        }
+      });
+    });
+
+    // Subscribe to tasks changes
+    const tasksSub = dbService.subscribeToTable('tasks', (payload) => {
+      dispatch({
+        type: 'REALTIME_UPDATE',
+        payload: {
+          table: 'tasks',
+          eventType: payload.eventType,
+          record: payload.new || payload.old
+        }
+      });
+    });
+
+    // Subscribe to notifications for current user
+    if (state.currentUser) {
+      const notificationsSub = dbService.subscribeToTable('notifications', (payload) => {
+        if (payload.new?.user_id === state.currentUser.id) {
+          dispatch({
+            type: 'REALTIME_UPDATE',
+            payload: {
+              table: 'notifications',
+              eventType: payload.eventType,
+              record: payload.new || payload.old
+            }
+          });
+        }
+      }, { filter: `user_id=eq.${state.currentUser.id}` });
+
+      dispatch({ type: 'ADD_SUBSCRIPTION', payload: notificationsSub });
+    }
+
+    dispatch({ type: 'ADD_SUBSCRIPTION', payload: projectsSub });
+    dispatch({ type: 'ADD_SUBSCRIPTION', payload: tasksSub });
+  };
+
+  // Mode switching
+  const toggleMode = async (isLive) => {
+    // Only allow live mode if Supabase is available
+    if (isLive && !dbService.isAvailable()) {
+      showToast('Live mode not available - Supabase not configured', 'error');
+      return;
+    }
+    
+    // Only allow live mode if Supabase is available
+    if (isLive && !dbService.isAvailable()) {
+      showToast('Live mode not available - Supabase not configured', 'error');
+      return;
+    }
+    
+    dispatch({ type: 'SET_LIVE_MODE', payload: isLive });
+    
+    if (isLive) {
+      await loadLiveData();
+      setupRealTimeSubscriptions();
+    } else {
+      loadDemoData();
+      // Clear subscriptions
+      state.realTimeSubscriptions.forEach(sub => {
+        if (sub && typeof sub.unsubscribe === 'function') {
+          sub.unsubscribe();
+        }
+      });
+      dispatch({ type: 'CLEAR_SUBSCRIPTIONS' });
+    }
+  };
+
+  // Authentication methods
+  const setCurrentUser = (user) => {
+    dispatch({ type: 'SET_CURRENT_USER', payload: user });
+  };
+
+  const logout = async () => {
+    try {
+      if (state.isLiveMode) {
+        await authService.signOut();
+      }
+      dispatch({ type: 'LOGOUT' });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const loginDemo = (email) => {
+    const user = mockUsers.find(u => u.email === email);
+    if (user) {
+      dispatch({ type: 'SET_CURRENT_USER', payload: user });
+      return user;
+    }
+    return null;
+  };
+
+  const loginLive = async (email, password) => {
+    if (!authService.isAvailable()) {
+      throw new Error('Live mode not available - use demo mode');
+    }
+    
+    if (!authService.isAvailable()) {
+      throw new Error('Live mode not available - use demo mode');
+    }
+    
+    try {
+      const { user } = await authService.signIn(email, password);
+      
+      if (user) {
+        const profile = await authService.getUserProfileById(user.id);
+        if (profile) {
+          if (profile.status === 'rejected') {
+            throw new Error('Your account has been rejected. Please contact support.');
+          }
+          
+          dispatch({ type: 'SET_CURRENT_USER', payload: profile });
+          return profile;
+        }
+      }
+    } catch (error) {
+      console.error('Live login error:', error);
+      throw error;
+    }
+  };
+
+  // Data management methods
+  const createDemoUsers = async () => {
+    try {
+      const results = await authService.createDemoUsers();
+      console.log('Demo users creation results:', results);
+      return results;
+    } catch (error) {
+      console.error('Error creating demo users:', error);
+      throw error;
+    }
+  };
+
+  // CRUD operations that work in both modes
+  const addLead = async (leadData) => {
+    if (state.isLiveMode) {
+      try {
+        const newLead = await dbService.createLead(leadData);
+        // Real-time subscription will handle state update
+        return newLead;
+      } catch (error) {
+        console.error('Error adding lead:', error);
+        throw error;
+      }
+    } else {
+      // Demo mode - update local state
+      const lead = {
+        id: `lead-${Date.now()}`,
+        ...leadData,
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+      dispatch({ type: 'ADD_LEAD', payload: lead });
+      return lead;
+    }
+  };
+
+  const updateLead = async (id, updates) => {
+    if (state.isLiveMode) {
+      try {
+        const updatedLead = await dbService.updateLead(id, updates);
+        // Real-time subscription will handle state update
+        return updatedLead;
+      } catch (error) {
+        console.error('Error updating lead:', error);
+        throw error;
+      }
+    } else {
+      // Demo mode
+      dispatch({
+        type: 'UPDATE_LEAD',
+        payload: { id, updates }
+      });
+    }
+  };
+
+  const addComplaint = async (complaintData) => {
+    if (state.isLiveMode) {
+      try {
+        const newComplaint = await dbService.createComplaint(complaintData);
+        return newComplaint;
+      } catch (error) {
+        console.error('Error adding complaint:', error);
+        throw error;
+      }
+    } else {
+      const complaint = {
+        id: `comp-${Date.now()}`,
+        ...complaintData,
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+      dispatch({ type: 'ADD_COMPLAINT', payload: complaint });
+      return complaint;
+    }
+  };
+
+  const updateProject = async (id, updates) => {
+    if (state.isLiveMode) {
+      try {
+        const updatedProject = await dbService.updateProject(id, updates);
+        return updatedProject;
+      } catch (error) {
+        console.error('Error updating project:', error);
+        throw error;
+      }
+    } else {
+      dispatch({
+        type: 'UPDATE_PROJECT_STATUS',
+        payload: { projectId: id, ...updates }
+      });
+    }
+  };
+
+  const updateTask = async (id, updates) => {
+    if (state.isLiveMode) {
+      try {
+        const updatedTask = await dbService.updateTask(id, updates);
+        return updatedTask;
+      } catch (error) {
+        console.error('Error updating task:', error);
+        throw error;
+      }
+    } else {
+      dispatch({
+        type: 'UPDATE_TASK_STATUS',
+        payload: { taskId: id, ...updates }
+      });
+    }
+  };
+
+  const addAttendance = async (attendanceData) => {
+    if (state.isLiveMode) {
+      try {
+        const newAttendance = await dbService.createAttendance(attendanceData);
+        return newAttendance;
+      } catch (error) {
+        console.error('Error adding attendance:', error);
+        throw error;
+      }
+    } else {
+      dispatch({ type: 'ADD_ATTENDANCE', payload: attendanceData });
+    }
+  };
+
+  const updateAttendance = async (id, updates) => {
+    if (state.isLiveMode) {
+      try {
+        const updatedAttendance = await dbService.updateAttendance(id, updates);
+        return updatedAttendance;
+      } catch (error) {
+        console.error('Error updating attendance:', error);
+        throw error;
+      }
+    } else {
+      dispatch({
+        type: 'UPDATE_ATTENDANCE',
+        payload: { id, ...updates }
+      });
+    }
+  };
+
+  const updateUserStatus = async (userId, status, role = null) => {
+    if (state.isLiveMode) {
+      try {
+        const updates = { status };
+        if (role) updates.role = role;
+        
+        await dbService.updateUserProfile(userId, updates);
+        
+        // Refresh users list
+        const users = await dbService.getUserProfiles();
+        dispatch({ type: 'SET_USERS', payload: users });
+        
+      } catch (error) {
+        console.error('Error updating user status:', error);
+        throw error;
+      }
+    } else {
+      dispatch({
+        type: 'UPDATE_USER_STATUS',
+        payload: { userId, status, role }
+      });
+    }
+  };
+
+  // File upload
+  const uploadFile = async (file, metadata) => {
+    if (state.isLiveMode) {
+      try {
+        return await dbService.uploadDocument(file, metadata);
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        throw error;
+      }
+    } else {
+      // Demo mode - simulate upload
+      return {
+        id: `doc-${Date.now()}`,
+        name: file.name,
+        type: metadata.type,
+        file_path: `demo/${file.name}`,
+        uploaded_by: metadata.uploadedBy
+      };
+    }
+  };
+
+  // Analytics tracking
+  const trackEvent = async (eventType, eventData = {}) => {
+    if (state.isLiveMode) {
+      await dbService.trackEvent(eventType, {
+        ...eventData,
+        userId: state.currentUser?.id
+      });
+    } else {
+      console.log('Demo Analytics Event:', eventType, eventData);
+    }
+  };
+
+  const showToast = (message, type = 'success') => {
+    console.log(`Toast: ${message} (${type})`);
+    // In production, integrate with your toast library
+    alert(`${type.toUpperCase()}: ${message}`);
+  };
+
+  const value = {
+    ...state,
+    dispatch,
+    
+    // Mode management
+    toggleMode,
+    
+    // Auth methods
+    setCurrentUser,
+    logout,
+    loginDemo,
+    loginLive,
+    createDemoUsers,
+    
+    // Data methods (work in both modes)
+    addLead,
+    updateLead,
+    addComplaint,
+    updateProject,
+    updateTask,
+    addAttendance,
+    updateAttendance,
+    updateUserStatus,
+    uploadFile,
+    trackEvent,
+    
+    // Utilities
+    showToast,
+    authService,
+    dbService
+  };
+
+  return (
+    <AppContext.Provider value={value}>
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export function useApp() {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useApp must be used within an AppProvider');
   }
-};
-
-// Mock GPS service for demo
-export const mockGPSService = {
-  async getCurrentLocation() {
-    // Simulate GPS delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Return mock Indian locations
-    const mockLocations = [
-      { lat: 19.0760, lng: 72.8777, address: 'Bandra West, Mumbai' },
-      { lat: 12.9716, lng: 77.5946, address: 'Whitefield, Bangalore' },
-      { lat: 28.4595, lng: 77.0266, address: 'Gurgaon, Haryana' },
-      { lat: 18.5204, lng: 73.8567, address: 'Pune, Maharashtra' },
-      { lat: 28.6139, lng: 77.2090, address: 'New Delhi' }
-    ];
-    
-    return mockLocations[Math.floor(Math.random() * mockLocations.length)];
-  },
-
-  async trackLocation(userId) {
-    const location = await this.getCurrentLocation();
-    return {
-      userId,
-      ...location,
-      timestamp: new Date().toISOString(),
-      accuracy: 10 // meters
-    };
-  }
-};
-
-// Mock WhatsApp service for demo
-export const mockWhatsAppService = {
-  async sendMessage(phone, message, attachments = []) {
-    // Simulate sending delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    console.log('Mock WhatsApp Message Sent:', {
-      to: phone,
-      message,
-      attachments: attachments.length
-    });
-    
-    return {
-      messageId: `wa-${Date.now()}`,
-      status: 'sent',
-      timestamp: new Date().toISOString()
-    };
-  },
-
-  async sendQuotation(phone, quotationData) {
-    const message = `🌞 *GreenSolar Quotation*
-
-Dear ${quotationData.customerName},
-
-Thank you for your interest in our solar solutions!
-
-💰 *Quotation Amount:* ₹${quotationData.amount?.toLocaleString()}
-📋 *Project Details:* ${quotationData.projectType || 'Solar Installation'}
-⚡ *System Capacity:* ${quotationData.capacity || '5kW'}
-📅 *Installation Timeline:* 7-10 days
-
-✅ *What's Included:*
-• High-efficiency solar panels
-• Premium inverter system
-• Professional installation
-• 10-year warranty
-• Free maintenance (1st year)
-
-📞 Contact us to proceed or ask questions!
-
-Best regards,
-GreenSolar Team`;
-
-    return this.sendMessage(phone, message);
-  },
-
-  async sendInvoice(phone, invoiceData) {
-    const message = `🧾 *GreenSolar Invoice*
-
-Dear ${invoiceData.customerName},
-
-Your project has been completed successfully! 🎉
-
-💰 *Invoice Amount:* ₹${invoiceData.amount?.toLocaleString()}
-📋 *Project:* ${invoiceData.projectTitle}
-📅 *Completion Date:* ${new Date().toLocaleDateString()}
-
-💳 *Payment Options:*
-• Bank Transfer
-• Online Payment
-• UPI/Digital Payment
-
-Thank you for choosing GreenSolar! ⚡
-
-Best regards,
-GreenSolar Team`;
-
-    return this.sendMessage(phone, message, ['invoice.pdf']);
-  }
-};
-
-// Demo mode workflow simulators
-export const demoWorkflows = {
-  // Simulate project pipeline progression
-  async progressProject(projectId, nextStage) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    demoStateManager.updateItem('projects', projectId, {
-      pipelineStage: nextStage,
-      updatedAt: new Date().toISOString()
-    });
-    
-    return { success: true, stage: nextStage };
-  },
-
-  // Simulate task completion
-  async completeTask(taskId, completionData) {
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    demoStateManager.updateItem('tasks', taskId, {
-      status: 'completed',
-      completionData,
-      updatedAt: new Date().toISOString()
-    });
-    
-    return { success: true, completedAt: new Date().toISOString() };
-  },
-
-  // Simulate lead conversion
-  async convertLead(leadId, projectData) {
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    
-    // Update lead status
-    demoStateManager.updateItem('leads', leadId, {
-      status: 'converted',
-      updatedAt: new Date().toISOString()
-    });
-    
-    // Create new project
-    const newProject = {
-      id: `demo-proj-${Date.now()}`,
-      ...projectData,
-      createdAt: new Date().toISOString()
-    };
-    
-    demoStateManager.addItem('projects', newProject);
-    
-    return { success: true, project: newProject };
-  },
-
-  // Simulate complaint resolution
-  async resolveComplaint(complaintId, resolutionData) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    demoStateManager.updateItem('complaints', complaintId, {
-      status: 'resolved',
-      resolutionNotes: resolutionData.notes,
-      resolvedAt: new Date().toISOString()
-    });
-    
-    return { success: true, resolvedAt: new Date().toISOString() };
-  }
-};
+  return context;
+}

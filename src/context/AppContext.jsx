@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useState } fro
 import { dbService, supabase } from '../lib/supabase.js';
 import { authService } from '../lib/auth.js';
 import { USER_STATUS } from '../types/index.js';
+import { demoStateManager } from '../utils/demoMode.js';
 import { 
   mockUsers, 
   mockProjects, 
@@ -30,7 +31,7 @@ const initialState = {
   commissions: [],
   loading: false,
   error: null,
-  isLiveMode: false, // Toggle between live and demo mode
+  isLiveMode: dbService.isAvailable(), // Auto-detect based on Supabase availability
   realTimeSubscriptions: []
 };
 
@@ -238,7 +239,7 @@ export function AppProvider({ children }) {
   // Initialize auth and load data
   useEffect(() => {
     initializeAuth();
-    if (state.isLiveMode) {
+    if (state.isLiveMode && dbService.isAvailable()) {
       loadLiveData();
       setupRealTimeSubscriptions();
     } else {
@@ -256,6 +257,11 @@ export function AppProvider({ children }) {
   }, [state.isLiveMode]);
 
   const initializeAuth = async () => {
+    if (!dbService.isAvailable()) {
+      console.log('Running in demo mode - Supabase not configured');
+      return;
+    }
+    
     try {
       // Check for existing session
       const session = await authService.getSession();
@@ -292,6 +298,12 @@ export function AppProvider({ children }) {
   };
 
   const loadLiveData = async () => {
+    if (!dbService.isAvailable()) {
+      console.warn('Cannot load live data - Supabase not available');
+      loadDemoData();
+      return;
+    }
+    
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
@@ -329,12 +341,16 @@ export function AppProvider({ children }) {
     } catch (error) {
       console.error('Error loading live data:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
+      // Fallback to demo data if live data fails
+      console.log('Falling back to demo data');
+      loadDemoData();
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   };
 
   const loadDemoData = () => {
+    console.log('Loading demo data');
     dispatch({ type: 'SET_USERS', payload: mockUsers });
     dispatch({ type: 'SET_PROJECTS', payload: mockProjects });
     dispatch({ type: 'SET_TASKS', payload: mockTasks });
@@ -348,7 +364,7 @@ export function AppProvider({ children }) {
   };
 
   const setupRealTimeSubscriptions = () => {
-    if (!state.isLiveMode) return;
+    if (!state.isLiveMode || !dbService.isAvailable()) return;
 
     // Subscribe to projects changes
     const projectsSub = dbService.subscribeToTable('projects', (payload) => {
@@ -398,6 +414,12 @@ export function AppProvider({ children }) {
 
   // Mode switching
   const toggleMode = async (isLive) => {
+    // Only allow live mode if Supabase is available
+    if (isLive && !dbService.isAvailable()) {
+      showToast('Live mode not available - Supabase not configured', 'error');
+      return;
+    }
+    
     dispatch({ type: 'SET_LIVE_MODE', payload: isLive });
     
     if (isLive) {
@@ -441,6 +463,10 @@ export function AppProvider({ children }) {
   };
 
   const loginLive = async (email, password) => {
+    if (!authService.isAvailable()) {
+      throw new Error('Live mode not available - use demo mode');
+    }
+    
     try {
       const { user } = await authService.signIn(email, password);
       

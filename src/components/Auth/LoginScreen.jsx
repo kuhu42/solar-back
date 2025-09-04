@@ -1,763 +1,611 @@
-import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
-import { dbService, supabase } from '../lib/supabase.js';
-import { authService } from '../lib/auth.js';
-import { USER_STATUS } from '../types/index.js';
-import { demoStateManager } from '../utils/demoMode.js';
-import { demoStateManager } from '../utils/demoMode.js';
+import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext.jsx';
+import { USER_ROLES } from '../../types/index.js';
+import ModeToggle from '../Common/ModeToggle.jsx';
 import { 
-  mockUsers, 
-  mockProjects, 
-  mockTasks, 
-  mockAttendance, 
-  mockInventory, 
-  mockLeads, 
-  mockComplaints, 
-  mockInvoices, 
-  mockNotifications 
-} from '../data/mockData.js';
+  Sun, 
+  Wind, 
+  Phone, 
+  Mail, 
+  Lock, 
+  User, 
+  MapPin,
+  GraduationCap,
+  CreditCard,
+  Eye,
+  EyeOff,
+  Loader
+} from 'lucide-react';
 
-const AppContext = createContext();
+const LoginScreen = () => {
+  const { loginDemo, loginLive, isLiveMode, toggleMode, authService, showToast } = useApp();
+  const [activeTab, setActiveTab] = useState('login');
+  const [loginMethod, setLoginMethod] = useState('demo');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  
+  // Login form state
+  const [loginForm, setLoginForm] = useState({
+    email: '',
+    password: '',
+    phone: ''
+  });
 
-const initialState = {
-  currentUser: null,
-  users: [],
-  projects: [],
-  tasks: [],
-  attendance: [],
-  inventory: [],
-  leads: [],
-  complaints: [],
-  invoices: [],
-  notifications: [],
-  commissions: [],
-  loading: false,
-  error: null,
-  isLiveMode: dbService.isAvailable(), // Auto-detect based on Supabase availability
-  realTimeSubscriptions: []
-};
-
-function appReducer(state, action) {
-  switch (action.type) {
-    case 'SET_LIVE_MODE':
-      return { ...state, isLiveMode: action.payload };
-    
-    case 'SET_CURRENT_USER':
-      return { ...state, currentUser: action.payload };
-    
-    case 'SET_USERS':
-      return { ...state, users: action.payload };
-    
-    case 'SET_PROJECTS':
-      return { ...state, projects: action.payload };
-    
-    case 'SET_TASKS':
-      return { ...state, tasks: action.payload };
-    
-    case 'SET_ATTENDANCE':
-      return { ...state, attendance: action.payload };
-    
-    case 'SET_INVENTORY':
-      return { ...state, inventory: action.payload };
-    
-    case 'SET_LEADS':
-      return { ...state, leads: action.payload };
-    
-    case 'SET_COMPLAINTS':
-      return { ...state, complaints: action.payload };
-    
-    case 'SET_INVOICES':
-      return { ...state, invoices: action.payload };
-    
-    case 'SET_NOTIFICATIONS':
-      return { ...state, notifications: action.payload };
-    
-    case 'SET_COMMISSIONS':
-      return { ...state, commissions: action.payload };
-    
-    case 'LOGOUT':
-      return { 
-        ...state, 
-        currentUser: null,
-        realTimeSubscriptions: []
-      };
-    
-    case 'SET_LOADING':
-      return { ...state, loading: action.payload };
-    
-    case 'SET_ERROR':
-      return { ...state, error: action.payload };
-    
-    case 'ADD_SUBSCRIPTION':
-      return { 
-        ...state, 
-        realTimeSubscriptions: [...state.realTimeSubscriptions, action.payload] 
-      };
-    
-    case 'CLEAR_SUBSCRIPTIONS':
-      return { ...state, realTimeSubscriptions: [] };
-    
-    // Real-time updates
-    case 'REALTIME_UPDATE':
-      const { table, eventType, record } = action.payload;
-      
-      switch (table) {
-        case 'projects':
-          if (eventType === 'INSERT') {
-            return { ...state, projects: [record, ...state.projects] };
-          } else if (eventType === 'UPDATE') {
-            return {
-              ...state,
-              projects: state.projects.map(p => p.id === record.id ? record : p)
-            };
-          } else if (eventType === 'DELETE') {
-            return {
-              ...state,
-              projects: state.projects.filter(p => p.id !== record.id)
-            };
-          }
-          break;
-        
-        case 'tasks':
-          if (eventType === 'INSERT') {
-            return { ...state, tasks: [record, ...state.tasks] };
-          } else if (eventType === 'UPDATE') {
-            return {
-              ...state,
-              tasks: state.tasks.map(t => t.id === record.id ? record : t)
-            };
-          }
-          break;
-        
-        case 'notifications':
-          if (eventType === 'INSERT') {
-            return { ...state, notifications: [record, ...state.notifications] };
-          } else if (eventType === 'UPDATE') {
-            return {
-              ...state,
-              notifications: state.notifications.map(n => n.id === record.id ? record : n)
-            };
-          }
-          break;
-        
-        default:
-          return state;
-      }
-      return state;
-    
-    // Legacy actions for demo mode
-    case 'UPDATE_USER_STATUS':
-      return {
-        ...state,
-        users: state.users.map(user =>
-          user.id === action.payload.userId
-            ? { ...user, status: action.payload.status, role: action.payload.role || user.role }
-            : user
-        )
-      };
-    
-    case 'ADD_ATTENDANCE':
-      return {
-        ...state,
-        attendance: [...state.attendance, action.payload]
-      };
-    
-    case 'UPDATE_ATTENDANCE':
-      return {
-        ...state,
-        attendance: state.attendance.map(att =>
-          att.id === action.payload.id ? { ...att, ...action.payload } : att
-        )
-      };
-    
-    case 'UPDATE_PROJECT_STATUS':
-      return {
-        ...state,
-        projects: state.projects.map(project =>
-          project.id === action.payload.projectId
-            ? { ...project, status: action.payload.status }
-            : project
-        )
-      };
-    
-    case 'UPDATE_PROJECT_PIPELINE':
-      return {
-        ...state,
-        projects: state.projects.map(project =>
-          project.id === action.payload.projectId
-            ? { ...project, pipelineStage: action.payload.pipelineStage }
-            : project
-        )
-      };
-    
-    case 'UPDATE_TASK_STATUS':
-      return {
-        ...state,
-        tasks: state.tasks.map(task =>
-          task.id === action.payload.taskId
-            ? { ...task, status: action.payload.status, ...action.payload.updates }
-            : task
-        )
-      };
-    
-    case 'ADD_LEAD':
-      return {
-        ...state,
-        leads: [...state.leads, action.payload]
-      };
-    
-    case 'UPDATE_LEAD':
-      return {
-        ...state,
-        leads: state.leads.map(lead =>
-          lead.id === action.payload.id ? { ...lead, ...action.payload.updates } : lead
-        )
-      };
-    
-    case 'ADD_COMPLAINT':
-      return {
-        ...state,
-        complaints: [...state.complaints, action.payload]
-      };
-    
-    case 'UPDATE_COMPLAINT_STATUS':
-      return {
-        ...state,
-        complaints: state.complaints.map(complaint =>
-          complaint.id === action.payload.complaintId
-            ? { ...complaint, status: action.payload.status }
-            : complaint
-        )
-      };
-    
-    default:
-      return state;
-  }
-}
-
-export function AppProvider({ children }) {
-  const [state, dispatch] = useReducer(appReducer, initialState);
-
-  // Initialize auth and load data
-  useEffect(() => {
-    initializeAuth();
-    if (state.isLiveMode && dbService.isAvailable()) {
-      loadLiveData();
-      setupRealTimeSubscriptions();
-    } else {
-      loadDemoData();
+  // Registration form state
+  const [registrationForm, setRegistrationForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    role: USER_ROLES.CUSTOMER,
+    location: '',
+    education: '',
+    address: '',
+    bankDetails: {
+      accountNumber: '',
+      ifscCode: '',
+      bankName: ''
     }
+  });
 
-    return () => {
-      // Cleanup subscriptions
-      state.realTimeSubscriptions.forEach(sub => {
-        if (sub && typeof sub.unsubscribe === 'function') {
-          sub.unsubscribe();
-        }
-      });
-    };
-  }, [state.isLiveMode]);
+  // OTP state
+  const [otpStep, setOtpStep] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
 
-  const initializeAuth = async () => {
-    if (!dbService.isAvailable()) {
-      console.log('Running in demo mode - Supabase not configured');
-      return;
-    }
-    
-    if (!dbService.isAvailable()) {
-      console.log('Running in demo mode - Supabase not configured');
-      return;
-    }
-    
-    try {
-      // Check for existing session
-      const session = await authService.getSession();
-      if (session?.user) {
-        const profile = await authService.getUserProfileById(session.user.id);
-        if (profile) {
-          dispatch({ type: 'SET_CURRENT_USER', payload: profile });
-        }
-      }
+  const demoUsers = [
+    { email: 'admin@greensolar.com', role: 'Company Admin', name: 'John Admin' },
+    { email: 'agent@greensolar.com', role: 'Field Agent', name: 'Sarah Agent' },
+    { email: 'freelancer@greensolar.com', role: 'Freelancer', name: 'Mike Freelancer' },
+    { email: 'installer@greensolar.com', role: 'Installer', name: 'Tom Installer' },
+    { email: 'tech@greensolar.com', role: 'Technician', name: 'Lisa Technician' },
+    { email: 'customer@example.com', role: 'Customer', name: 'David Customer' }
+  ];
 
-      // Listen for auth changes
-      authService.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          const profile = await authService.getUserProfileById(session.user.id);
-          if (profile) {
-            dispatch({ type: 'SET_CURRENT_USER', payload: profile });
-            
-            // Track login event
-            if (state.isLiveMode) {
-              await dbService.trackEvent('user_login', {
-                userId: profile.id,
-                role: profile.role
-              });
-            }
-          }
-        } else if (event === 'SIGNED_OUT') {
-          dispatch({ type: 'LOGOUT' });
-          dispatch({ type: 'CLEAR_SUBSCRIPTIONS' });
-        }
-      });
-    } catch (error) {
-      console.error('Auth initialization error:', error);
-    }
-  };
-
-  const loadLiveData = async () => {
-    if (!dbService.isAvailable()) {
-      console.warn('Cannot load live data - Supabase not available');
-      loadDemoData();
-      return;
-    }
-    
-    if (!dbService.isAvailable()) {
-      console.warn('Cannot load live data - Supabase not available');
-      loadDemoData();
-      return;
-    }
-    
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      const [
-        users, projects, tasks, attendance, inventory, 
-        leads, complaints, invoices, commissions
-      ] = await Promise.all([
-        dbService.getUserProfiles(),
-        dbService.getProjects(),
-        dbService.getTasks(),
-        dbService.getAttendance(),
-        dbService.getInventory(),
-        dbService.getLeads(),
-        dbService.getComplaints(),
-        dbService.getInvoices(),
-        dbService.getCommissions()
-      ]);
-
-      dispatch({ type: 'SET_USERS', payload: users });
-      dispatch({ type: 'SET_PROJECTS', payload: projects });
-      dispatch({ type: 'SET_TASKS', payload: tasks });
-      dispatch({ type: 'SET_ATTENDANCE', payload: attendance });
-      dispatch({ type: 'SET_INVENTORY', payload: inventory });
-      dispatch({ type: 'SET_LEADS', payload: leads });
-      dispatch({ type: 'SET_COMPLAINTS', payload: complaints });
-      dispatch({ type: 'SET_INVOICES', payload: invoices });
-      dispatch({ type: 'SET_COMMISSIONS', payload: commissions });
-
-      // Load notifications for current user
-      if (state.currentUser) {
-        const notifications = await dbService.getNotifications(state.currentUser.id);
-        dispatch({ type: 'SET_NOTIFICATIONS', payload: notifications });
-      }
-      
-    } catch (error) {
-      console.error('Error loading live data:', error);
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-      // Fallback to demo data if live data fails
-      console.log('Falling back to demo data');
-      loadDemoData();
-      // Fallback to demo data if live data fails
-      console.log('Falling back to demo data');
-      loadDemoData();
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  };
-
-  const loadDemoData = () => {
-    console.log('Loading demo data');
-    console.log('Loading demo data');
-    dispatch({ type: 'SET_USERS', payload: mockUsers });
-    dispatch({ type: 'SET_PROJECTS', payload: mockProjects });
-    dispatch({ type: 'SET_TASKS', payload: mockTasks });
-    dispatch({ type: 'SET_ATTENDANCE', payload: mockAttendance });
-    dispatch({ type: 'SET_INVENTORY', payload: mockInventory });
-    dispatch({ type: 'SET_LEADS', payload: mockLeads });
-    dispatch({ type: 'SET_COMPLAINTS', payload: mockComplaints });
-    dispatch({ type: 'SET_INVOICES', payload: mockInvoices });
-    dispatch({ type: 'SET_NOTIFICATIONS', payload: mockNotifications });
-    dispatch({ type: 'SET_COMMISSIONS', payload: [] });
-  };
-
-  const setupRealTimeSubscriptions = () => {
-    if (!state.isLiveMode || !dbService.isAvailable()) return;
-
-    // Subscribe to projects changes
-    const projectsSub = dbService.subscribeToTable('projects', (payload) => {
-      dispatch({
-        type: 'REALTIME_UPDATE',
-        payload: {
-          table: 'projects',
-          eventType: payload.eventType,
-          record: payload.new || payload.old
-        }
-      });
-    });
-
-    // Subscribe to tasks changes
-    const tasksSub = dbService.subscribeToTable('tasks', (payload) => {
-      dispatch({
-        type: 'REALTIME_UPDATE',
-        payload: {
-          table: 'tasks',
-          eventType: payload.eventType,
-          record: payload.new || payload.old
-        }
-      });
-    });
-
-    // Subscribe to notifications for current user
-    if (state.currentUser) {
-      const notificationsSub = dbService.subscribeToTable('notifications', (payload) => {
-        if (payload.new?.user_id === state.currentUser.id) {
-          dispatch({
-            type: 'REALTIME_UPDATE',
-            payload: {
-              table: 'notifications',
-              eventType: payload.eventType,
-              record: payload.new || payload.old
-            }
-          });
-        }
-      }, { filter: `user_id=eq.${state.currentUser.id}` });
-
-      dispatch({ type: 'ADD_SUBSCRIPTION', payload: notificationsSub });
-    }
-
-    dispatch({ type: 'ADD_SUBSCRIPTION', payload: projectsSub });
-    dispatch({ type: 'ADD_SUBSCRIPTION', payload: tasksSub });
-  };
-
-  // Mode switching
-  const toggleMode = async (isLive) => {
-    // Only allow live mode if Supabase is available
-    if (isLive && !dbService.isAvailable()) {
-      showToast('Live mode not available - Supabase not configured', 'error');
-      return;
-    }
-    
-    // Only allow live mode if Supabase is available
-    if (isLive && !dbService.isAvailable()) {
-      showToast('Live mode not available - Supabase not configured', 'error');
-      return;
-    }
-    
-    dispatch({ type: 'SET_LIVE_MODE', payload: isLive });
-    
-    if (isLive) {
-      await loadLiveData();
-      setupRealTimeSubscriptions();
-    } else {
-      loadDemoData();
-      // Clear subscriptions
-      state.realTimeSubscriptions.forEach(sub => {
-        if (sub && typeof sub.unsubscribe === 'function') {
-          sub.unsubscribe();
-        }
-      });
-      dispatch({ type: 'CLEAR_SUBSCRIPTIONS' });
-    }
-  };
-
-  // Authentication methods
-  const setCurrentUser = (user) => {
-    dispatch({ type: 'SET_CURRENT_USER', payload: user });
-  };
-
-  const logout = async () => {
-    try {
-      if (state.isLiveMode) {
-        await authService.signOut();
-      }
-      dispatch({ type: 'LOGOUT' });
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
-  const loginDemo = (email) => {
-    const user = mockUsers.find(u => u.email === email);
-    if (user) {
-      dispatch({ type: 'SET_CURRENT_USER', payload: user });
-      return user;
-    }
-    return null;
-  };
-
-  const loginLive = async (email, password) => {
-    if (!authService.isAvailable()) {
-      throw new Error('Live mode not available - use demo mode');
-    }
-    
-    if (!authService.isAvailable()) {
-      throw new Error('Live mode not available - use demo mode');
-    }
-    
-    try {
-      const { user } = await authService.signIn(email, password);
-      
+  const handleDemoLogin = (email) => {
+    setLoading(true);
+    setTimeout(() => {
+      const user = loginDemo(email);
       if (user) {
-        const profile = await authService.getUserProfileById(user.id);
-        if (profile) {
-          if (profile.status === 'rejected') {
-            throw new Error('Your account has been rejected. Please contact support.');
+        showToast(`Welcome ${user.name}! (Demo Mode)`);
+      } else {
+        showToast('Demo user not found', 'error');
+      }
+      setLoading(false);
+    }, 1000);
+  };
+
+  const handleLiveLogin = async (e) => {
+    e.preventDefault();
+    if (!authService.isAvailable()) {
+      showToast('Live mode not available - Supabase not configured', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (loginMethod === 'phone') {
+        // Phone OTP login
+        if (!otpStep) {
+          await authService.signUpWithPhone(loginForm.phone, {});
+          setOtpSent(true);
+          setOtpStep(true);
+          showToast('OTP sent to your phone');
+        } else {
+          const result = await authService.verifyOTP(loginForm.phone, otp);
+          if (result.verified) {
+            showToast('Login successful!');
           }
+        }
+      } else {
+        // Email/password login
+        await loginLive(loginForm.email, loginForm.password);
+        showToast('Login successful!');
+      }
+    } catch (error) {
+      showToast(error.message, 'error');
+      if (error.message.includes('Invalid login credentials')) {
+        showToast('Try demo mode or register first', 'info');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegistration = async (e) => {
+    e.preventDefault();
+    if (!authService.isAvailable()) {
+      showToast('Live mode not available - use demo mode', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (!otpStep) {
+        // Send OTP
+        await authService.signUpWithPhone(registrationForm.phone, registrationForm);
+        setOtpSent(true);
+        setOtpStep(true);
+        showToast('OTP sent to your phone');
+      } else {
+        // Verify OTP and create account
+        const result = await authService.verifyOTP(registrationForm.phone, otp);
+        if (result.verified && result.user) {
+          // Create user profile
+          await authService.createUserProfile(result.user.id, {
+            phone: registrationForm.phone,
+            name: registrationForm.name,
+            email: registrationForm.email,
+            role: registrationForm.role,
+            location: registrationForm.location,
+            education: registrationForm.education,
+            address: registrationForm.address,
+            bank_details: registrationForm.bankDetails
+          });
           
-          dispatch({ type: 'SET_CURRENT_USER', payload: profile });
-          return profile;
+          showToast('Registration successful! Awaiting admin approval.');
         }
       }
     } catch (error) {
-      console.error('Live login error:', error);
-      throw error;
+      showToast(error.message, 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Data management methods
-  const createDemoUsers = async () => {
-    try {
-      const results = await authService.createDemoUsers();
-      console.log('Demo users creation results:', results);
-      return results;
-    } catch (error) {
-      console.error('Error creating demo users:', error);
-      throw error;
-    }
-  };
-
-  // CRUD operations that work in both modes
-  const addLead = async (leadData) => {
-    if (state.isLiveMode) {
-      try {
-        const newLead = await dbService.createLead(leadData);
-        // Real-time subscription will handle state update
-        return newLead;
-      } catch (error) {
-        console.error('Error adding lead:', error);
-        throw error;
-      }
-    } else {
-      // Demo mode - update local state
-      const lead = {
-        id: `lead-${Date.now()}`,
-        ...leadData,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      dispatch({ type: 'ADD_LEAD', payload: lead });
-      return lead;
-    }
-  };
-
-  const updateLead = async (id, updates) => {
-    if (state.isLiveMode) {
-      try {
-        const updatedLead = await dbService.updateLead(id, updates);
-        // Real-time subscription will handle state update
-        return updatedLead;
-      } catch (error) {
-        console.error('Error updating lead:', error);
-        throw error;
-      }
-    } else {
-      // Demo mode
-      dispatch({
-        type: 'UPDATE_LEAD',
-        payload: { id, updates }
-      });
-    }
-  };
-
-  const addComplaint = async (complaintData) => {
-    if (state.isLiveMode) {
-      try {
-        const newComplaint = await dbService.createComplaint(complaintData);
-        return newComplaint;
-      } catch (error) {
-        console.error('Error adding complaint:', error);
-        throw error;
-      }
-    } else {
-      const complaint = {
-        id: `comp-${Date.now()}`,
-        ...complaintData,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      dispatch({ type: 'ADD_COMPLAINT', payload: complaint });
-      return complaint;
-    }
-  };
-
-  const updateProject = async (id, updates) => {
-    if (state.isLiveMode) {
-      try {
-        const updatedProject = await dbService.updateProject(id, updates);
-        return updatedProject;
-      } catch (error) {
-        console.error('Error updating project:', error);
-        throw error;
-      }
-    } else {
-      dispatch({
-        type: 'UPDATE_PROJECT_STATUS',
-        payload: { projectId: id, ...updates }
-      });
-    }
-  };
-
-  const updateTask = async (id, updates) => {
-    if (state.isLiveMode) {
-      try {
-        const updatedTask = await dbService.updateTask(id, updates);
-        return updatedTask;
-      } catch (error) {
-        console.error('Error updating task:', error);
-        throw error;
-      }
-    } else {
-      dispatch({
-        type: 'UPDATE_TASK_STATUS',
-        payload: { taskId: id, ...updates }
-      });
-    }
-  };
-
-  const addAttendance = async (attendanceData) => {
-    if (state.isLiveMode) {
-      try {
-        const newAttendance = await dbService.createAttendance(attendanceData);
-        return newAttendance;
-      } catch (error) {
-        console.error('Error adding attendance:', error);
-        throw error;
-      }
-    } else {
-      dispatch({ type: 'ADD_ATTENDANCE', payload: attendanceData });
-    }
-  };
-
-  const updateAttendance = async (id, updates) => {
-    if (state.isLiveMode) {
-      try {
-        const updatedAttendance = await dbService.updateAttendance(id, updates);
-        return updatedAttendance;
-      } catch (error) {
-        console.error('Error updating attendance:', error);
-        throw error;
-      }
-    } else {
-      dispatch({
-        type: 'UPDATE_ATTENDANCE',
-        payload: { id, ...updates }
-      });
-    }
-  };
-
-  const updateUserStatus = async (userId, status, role = null) => {
-    if (state.isLiveMode) {
-      try {
-        const updates = { status };
-        if (role) updates.role = role;
-        
-        await dbService.updateUserProfile(userId, updates);
-        
-        // Refresh users list
-        const users = await dbService.getUserProfiles();
-        dispatch({ type: 'SET_USERS', payload: users });
-        
-      } catch (error) {
-        console.error('Error updating user status:', error);
-        throw error;
-      }
-    } else {
-      dispatch({
-        type: 'UPDATE_USER_STATUS',
-        payload: { userId, status, role }
-      });
-    }
-  };
-
-  // File upload
-  const uploadFile = async (file, metadata) => {
-    if (state.isLiveMode) {
-      try {
-        return await dbService.uploadDocument(file, metadata);
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        throw error;
-      }
-    } else {
-      // Demo mode - simulate upload
-      return {
-        id: `doc-${Date.now()}`,
-        name: file.name,
-        type: metadata.type,
-        file_path: `demo/${file.name}`,
-        uploaded_by: metadata.uploadedBy
-      };
-    }
-  };
-
-  // Analytics tracking
-  const trackEvent = async (eventType, eventData = {}) => {
-    if (state.isLiveMode) {
-      await dbService.trackEvent(eventType, {
-        ...eventData,
-        userId: state.currentUser?.id
-      });
-    } else {
-      console.log('Demo Analytics Event:', eventType, eventData);
-    }
-  };
-
-  const showToast = (message, type = 'success') => {
-    console.log(`Toast: ${message} (${type})`);
-    // In production, integrate with your toast library
-    alert(`${type.toUpperCase()}: ${message}`);
-  };
-
-  const value = {
-    ...state,
-    dispatch,
-    
-    // Mode management
-    toggleMode,
-    
-    // Auth methods
-    setCurrentUser,
-    logout,
-    loginDemo,
-    loginLive,
-    createDemoUsers,
-    
-    // Data methods (work in both modes)
-    addLead,
-    updateLead,
-    addComplaint,
-    updateProject,
-    updateTask,
-    addAttendance,
-    updateAttendance,
-    updateUserStatus,
-    uploadFile,
-    trackEvent,
-    
-    // Utilities
-    showToast,
-    authService,
-    dbService
+  const resetOtpFlow = () => {
+    setOtpStep(false);
+    setOtp('');
+    setOtpSent(false);
   };
 
   return (
-    <AppContext.Provider value={value}>
-      {children}
-    </AppContext.Provider>
-  );
-}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center space-x-2 mb-4">
+            <Sun className="w-8 h-8 text-yellow-500" />
+            <Wind className="w-8 h-8 text-blue-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900">GreenSolar</h1>
+          <p className="text-gray-600 mt-2">Field Service Management System</p>
+        </div>
 
-export function useApp() {
-  const context = useContext(AppContext);
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider');
-  }
-  return context;
-}
+        {/* Mode Toggle */}
+        <div className="mb-6">
+          <ModeToggle 
+            isLiveMode={isLiveMode} 
+            onToggle={toggleMode}
+            size="normal"
+            showLabels={true}
+          />
+        </div>
+
+        {/* Main Card */}
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* Tab Navigation */}
+          <div className="flex space-x-1 mb-6 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => {
+                setActiveTab('login');
+                resetOtpFlow();
+              }}
+              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'login'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Login
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('register');
+                resetOtpFlow();
+              }}
+              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
+                activeTab === 'register'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Register
+            </button>
+          </div>
+
+          {activeTab === 'login' && (
+            <div className="space-y-6">
+              {/* Demo Mode Quick Login */}
+              {!isLiveMode && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Demo Quick Login</h3>
+                  <div className="grid gap-2">
+                    {demoUsers.map((user) => (
+                      <button
+                        key={user.email}
+                        onClick={() => handleDemoLogin(user.email)}
+                        disabled={loading}
+                        className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <div className="text-left">
+                          <p className="font-medium text-gray-900">{user.name}</p>
+                          <p className="text-sm text-gray-600">{user.role}</p>
+                        </div>
+                        <User className="w-5 h-5 text-gray-400" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Live Mode Login */}
+              {isLiveMode && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Live Login</h3>
+                  
+                  {/* Login Method Toggle */}
+                  <div className="flex space-x-1 mb-4 bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => {
+                        setLoginMethod('phone');
+                        resetOtpFlow();
+                      }}
+                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
+                        loginMethod === 'phone'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-500'
+                      }`}
+                    >
+                      Phone OTP
+                    </button>
+                    <button
+                      onClick={() => {
+                        setLoginMethod('email');
+                        resetOtpFlow();
+                      }}
+                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors ${
+                        loginMethod === 'email'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-500'
+                      }`}
+                    >
+                      Email/Password
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleLiveLogin} className="space-y-4">
+                    {loginMethod === 'phone' ? (
+                      <>
+                        {!otpStep ? (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Phone Number
+                            </label>
+                            <div className="relative">
+                              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                              <input
+                                type="tel"
+                                value={loginForm.phone}
+                                onChange={(e) => setLoginForm({...loginForm, phone: e.target.value})}
+                                placeholder="+91 98765 43210"
+                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                required
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Enter OTP
+                            </label>
+                            <input
+                              type="text"
+                              value={otp}
+                              onChange={(e) => setOtp(e.target.value)}
+                              placeholder="123456"
+                              maxLength="6"
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg font-mono"
+                              required
+                            />
+                            <p className="text-sm text-gray-500 mt-2">
+                              OTP sent to {loginForm.phone}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={resetOtpFlow}
+                              className="text-sm text-blue-600 hover:text-blue-700 mt-1"
+                            >
+                              Change phone number
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Email
+                          </label>
+                          <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input
+                              type="email"
+                              value={loginForm.email}
+                              onChange={(e) => setLoginForm({...loginForm, email: e.target.value})}
+                              placeholder="your@email.com"
+                              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              required
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Password
+                          </label>
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input
+                              type={showPassword ? 'text' : 'password'}
+                              value={loginForm.password}
+                              onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
+                              placeholder="Enter password"
+                              className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              required
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      {loading ? (
+                        <Loader className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <>
+                          {loginMethod === 'phone' 
+                            ? (otpStep ? 'Verify OTP' : 'Send OTP')
+                            : 'Sign In'
+                          }
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'register' && isLiveMode && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-900">Create Account</h3>
+              
+              {!otpStep ? (
+                <form onSubmit={handleRegistration} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Full Name
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        value={registrationForm.name}
+                        onChange={(e) => setRegistrationForm({...registrationForm, name: e.target.value})}
+                        placeholder="Enter your full name"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone Number
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="tel"
+                        value={registrationForm.phone}
+                        onChange={(e) => setRegistrationForm({...registrationForm, phone: e.target.value})}
+                        placeholder="+91 98765 43210"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email (Optional)
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="email"
+                        value={registrationForm.email}
+                        onChange={(e) => setRegistrationForm({...registrationForm, email: e.target.value})}
+                        placeholder="your@email.com"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role
+                    </label>
+                    <select
+                      value={registrationForm.role}
+                      onChange={(e) => setRegistrationForm({...registrationForm, role: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value={USER_ROLES.CUSTOMER}>Customer</option>
+                      <option value={USER_ROLES.FREELANCER}>Freelancer</option>
+                      <option value={USER_ROLES.INSTALLER}>Installer</option>
+                      <option value={USER_ROLES.TECHNICIAN}>Technician</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Location
+                    </label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        value={registrationForm.location}
+                        onChange={(e) => setRegistrationForm({...registrationForm, location: e.target.value})}
+                        placeholder="City, State"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Additional fields for professionals */}
+                  {registrationForm.role !== USER_ROLES.CUSTOMER && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Education/Certification
+                        </label>
+                        <div className="relative">
+                          <GraduationCap className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={registrationForm.education}
+                            onChange={(e) => setRegistrationForm({...registrationForm, education: e.target.value})}
+                            placeholder="Your qualifications"
+                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Bank Account Number
+                        </label>
+                        <div className="relative">
+                          <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={registrationForm.bankDetails.accountNumber}
+                            onChange={(e) => setRegistrationForm({
+                              ...registrationForm, 
+                              bankDetails: {
+                                ...registrationForm.bankDetails,
+                                accountNumber: e.target.value
+                              }
+                            })}
+                            placeholder="Account number"
+                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center"
+                  >
+                    {loading ? (
+                      <Loader className="w-5 h-5 animate-spin" />
+                    ) : (
+                      'Send OTP'
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-4">Verify Your Phone</h4>
+                  <form onSubmit={handleRegistration} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Enter OTP
+                      </label>
+                      <input
+                        type="text"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        placeholder="123456"
+                        maxLength="6"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center text-lg font-mono"
+                        required
+                      />
+                      <p className="text-sm text-gray-500 mt-2">
+                        OTP sent to {registrationForm.phone}
+                      </p>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center"
+                    >
+                      {loading ? (
+                        <Loader className="w-5 h-5 animate-spin" />
+                      ) : (
+                        'Complete Registration'
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={resetOtpFlow}
+                      className="w-full text-blue-600 hover:text-blue-700 py-2"
+                    >
+                      Back to phone entry
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Demo Mode Notice */}
+          {!isLiveMode && (
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Demo Mode:</strong> Click any user above to instantly login and explore the system. 
+                No registration required.
+              </p>
+            </div>
+          )}
+
+          {/* Live Mode Notice */}
+          {isLiveMode && !authService.isAvailable() && (
+            <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-sm text-orange-800">
+                <strong>Supabase Not Configured:</strong> Please set up your Supabase project and add environment variables to use live mode.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="text-center mt-8 text-sm text-gray-500">
+          <p>© 2024 GreenSolar. All rights reserved.</p>
+          <p className="mt-1">Solar & Wind Energy Solutions</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default LoginScreen;

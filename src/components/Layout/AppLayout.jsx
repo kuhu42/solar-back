@@ -1,256 +1,763 @@
-import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext.jsx';
-import { USER_ROLES } from '../../types/index.js';
+import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import { dbService, supabase } from '../lib/supabase.js';
+import { authService } from '../lib/auth.js';
+import { USER_STATUS } from '../types/index.js';
+import { demoStateManager } from '../utils/demoMode.js';
+import { demoStateManager } from '../utils/demoMode.js';
 import { 
-  Menu, 
-  X, 
-  Bell, 
-  User, 
-  LogOut, 
-  Home,
-  Users,
-  Briefcase,
-  Wrench,
-  Settings,
-  MapPin,
-  FileText,
-  DollarSign,
-  Package,
-  MessageSquare,
-  TrendingUp,
-  ToggleLeft,
-  ToggleRight,
-  Zap
-} from 'lucide-react';
+  mockUsers, 
+  mockProjects, 
+  mockTasks, 
+  mockAttendance, 
+  mockInventory, 
+  mockLeads, 
+  mockComplaints, 
+  mockInvoices, 
+  mockNotifications 
+} from '../data/mockData.js';
 
-const AppLayout = ({ children }) => {
-  const { currentUser, logout, notifications, isLiveMode, toggleMode } = useApp();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+const AppContext = createContext();
 
-  const unreadNotifications = notifications.filter(n => !n.read && n.userId === currentUser?.id).length;
+const initialState = {
+  currentUser: null,
+  users: [],
+  projects: [],
+  tasks: [],
+  attendance: [],
+  inventory: [],
+  leads: [],
+  complaints: [],
+  invoices: [],
+  notifications: [],
+  commissions: [],
+  loading: false,
+  error: null,
+  isLiveMode: dbService.isAvailable(), // Auto-detect based on Supabase availability
+  realTimeSubscriptions: []
+};
 
-  const getNavigationItems = () => {
-    const baseItems = [
-      { name: 'Dashboard', icon: Home, href: '#' }
-    ];
+function appReducer(state, action) {
+  switch (action.type) {
+    case 'SET_LIVE_MODE':
+      return { ...state, isLiveMode: action.payload };
+    
+    case 'SET_CURRENT_USER':
+      return { ...state, currentUser: action.payload };
+    
+    case 'SET_USERS':
+      return { ...state, users: action.payload };
+    
+    case 'SET_PROJECTS':
+      return { ...state, projects: action.payload };
+    
+    case 'SET_TASKS':
+      return { ...state, tasks: action.payload };
+    
+    case 'SET_ATTENDANCE':
+      return { ...state, attendance: action.payload };
+    
+    case 'SET_INVENTORY':
+      return { ...state, inventory: action.payload };
+    
+    case 'SET_LEADS':
+      return { ...state, leads: action.payload };
+    
+    case 'SET_COMPLAINTS':
+      return { ...state, complaints: action.payload };
+    
+    case 'SET_INVOICES':
+      return { ...state, invoices: action.payload };
+    
+    case 'SET_NOTIFICATIONS':
+      return { ...state, notifications: action.payload };
+    
+    case 'SET_COMMISSIONS':
+      return { ...state, commissions: action.payload };
+    
+    case 'LOGOUT':
+      return { 
+        ...state, 
+        currentUser: null,
+        realTimeSubscriptions: []
+      };
+    
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    
+    case 'ADD_SUBSCRIPTION':
+      return { 
+        ...state, 
+        realTimeSubscriptions: [...state.realTimeSubscriptions, action.payload] 
+      };
+    
+    case 'CLEAR_SUBSCRIPTIONS':
+      return { ...state, realTimeSubscriptions: [] };
+    
+    // Real-time updates
+    case 'REALTIME_UPDATE':
+      const { table, eventType, record } = action.payload;
+      
+      switch (table) {
+        case 'projects':
+          if (eventType === 'INSERT') {
+            return { ...state, projects: [record, ...state.projects] };
+          } else if (eventType === 'UPDATE') {
+            return {
+              ...state,
+              projects: state.projects.map(p => p.id === record.id ? record : p)
+            };
+          } else if (eventType === 'DELETE') {
+            return {
+              ...state,
+              projects: state.projects.filter(p => p.id !== record.id)
+            };
+          }
+          break;
+        
+        case 'tasks':
+          if (eventType === 'INSERT') {
+            return { ...state, tasks: [record, ...state.tasks] };
+          } else if (eventType === 'UPDATE') {
+            return {
+              ...state,
+              tasks: state.tasks.map(t => t.id === record.id ? record : t)
+            };
+          }
+          break;
+        
+        case 'notifications':
+          if (eventType === 'INSERT') {
+            return { ...state, notifications: [record, ...state.notifications] };
+          } else if (eventType === 'UPDATE') {
+            return {
+              ...state,
+              notifications: state.notifications.map(n => n.id === record.id ? record : n)
+            };
+          }
+          break;
+        
+        default:
+          return state;
+      }
+      return state;
+    
+    // Legacy actions for demo mode
+    case 'UPDATE_USER_STATUS':
+      return {
+        ...state,
+        users: state.users.map(user =>
+          user.id === action.payload.userId
+            ? { ...user, status: action.payload.status, role: action.payload.role || user.role }
+            : user
+        )
+      };
+    
+    case 'ADD_ATTENDANCE':
+      return {
+        ...state,
+        attendance: [...state.attendance, action.payload]
+      };
+    
+    case 'UPDATE_ATTENDANCE':
+      return {
+        ...state,
+        attendance: state.attendance.map(att =>
+          att.id === action.payload.id ? { ...att, ...action.payload } : att
+        )
+      };
+    
+    case 'UPDATE_PROJECT_STATUS':
+      return {
+        ...state,
+        projects: state.projects.map(project =>
+          project.id === action.payload.projectId
+            ? { ...project, status: action.payload.status }
+            : project
+        )
+      };
+    
+    case 'UPDATE_PROJECT_PIPELINE':
+      return {
+        ...state,
+        projects: state.projects.map(project =>
+          project.id === action.payload.projectId
+            ? { ...project, pipelineStage: action.payload.pipelineStage }
+            : project
+        )
+      };
+    
+    case 'UPDATE_TASK_STATUS':
+      return {
+        ...state,
+        tasks: state.tasks.map(task =>
+          task.id === action.payload.taskId
+            ? { ...task, status: action.payload.status, ...action.payload.updates }
+            : task
+        )
+      };
+    
+    case 'ADD_LEAD':
+      return {
+        ...state,
+        leads: [...state.leads, action.payload]
+      };
+    
+    case 'UPDATE_LEAD':
+      return {
+        ...state,
+        leads: state.leads.map(lead =>
+          lead.id === action.payload.id ? { ...lead, ...action.payload.updates } : lead
+        )
+      };
+    
+    case 'ADD_COMPLAINT':
+      return {
+        ...state,
+        complaints: [...state.complaints, action.payload]
+      };
+    
+    case 'UPDATE_COMPLAINT_STATUS':
+      return {
+        ...state,
+        complaints: state.complaints.map(complaint =>
+          complaint.id === action.payload.complaintId
+            ? { ...complaint, status: action.payload.status }
+            : complaint
+        )
+      };
+    
+    default:
+      return state;
+  }
+}
 
-    switch (currentUser?.role) {
-      case USER_ROLES.COMPANY:
-        return [
-          ...baseItems,
-          { name: 'Projects', icon: Briefcase, href: '#' },
-          { name: 'Users', icon: Users, href: '#' },
-          { name: 'Attendance', icon: MapPin, href: '#' },
-          { name: 'Inventory', icon: Package, href: '#' },
-          { name: 'Invoices', icon: DollarSign, href: '#' },
-          { name: 'Reports', icon: FileText, href: '#' }
-        ];
-      case USER_ROLES.AGENT:
-        return [
-          ...baseItems,
-          { name: 'Projects', icon: Briefcase, href: '#' },
-          { name: 'Customers', icon: Users, href: '#' },
-          { name: 'Attendance', icon: MapPin, href: '#' },
-          { name: 'Quotes', icon: FileText, href: '#' }
-        ];
-      case USER_ROLES.FREELANCER:
-        return [
-          ...baseItems,
-          { name: 'Leads', icon: TrendingUp, href: '#' },
-          { name: 'Earnings', icon: DollarSign, href: '#' }
-        ];
-      case USER_ROLES.INSTALLER:
-        return [
-          ...baseItems,
-          { name: 'Tasks', icon: Wrench, href: '#' },
-          { name: 'Attendance', icon: MapPin, href: '#' },
-          { name: 'Scanner', icon: Package, href: '#' }
-        ];
-      case USER_ROLES.TECHNICIAN:
-        return [
-          ...baseItems,
-          { name: 'Complaints', icon: MessageSquare, href: '#' },
-          { name: 'Tasks', icon: Wrench, href: '#' },
-          { name: 'Scanner', icon: Package, href: '#' },
-          { name: 'Invoices', icon: DollarSign, href: '#' }
-        ];
-      case USER_ROLES.CUSTOMER:
-        return [
-          ...baseItems,
-          { name: 'My Projects', icon: Briefcase, href: '#' },
-          { name: 'Track Serial', icon: Package, href: '#' },
-          { name: 'Complaints', icon: MessageSquare, href: '#' },
-          { name: 'Documents', icon: FileText, href: '#' }
-        ];
-      default:
-        return baseItems;
+export function AppProvider({ children }) {
+  const [state, dispatch] = useReducer(appReducer, initialState);
+
+  // Initialize auth and load data
+  useEffect(() => {
+    initializeAuth();
+    if (state.isLiveMode && dbService.isAvailable()) {
+      loadLiveData();
+      setupRealTimeSubscriptions();
+    } else {
+      loadDemoData();
+    }
+
+    return () => {
+      // Cleanup subscriptions
+      state.realTimeSubscriptions.forEach(sub => {
+        if (sub && typeof sub.unsubscribe === 'function') {
+          sub.unsubscribe();
+        }
+      });
+    };
+  }, [state.isLiveMode]);
+
+  const initializeAuth = async () => {
+    if (!dbService.isAvailable()) {
+      console.log('Running in demo mode - Supabase not configured');
+      return;
+    }
+    
+    if (!dbService.isAvailable()) {
+      console.log('Running in demo mode - Supabase not configured');
+      return;
+    }
+    
+    try {
+      // Check for existing session
+      const session = await authService.getSession();
+      if (session?.user) {
+        const profile = await authService.getUserProfileById(session.user.id);
+        if (profile) {
+          dispatch({ type: 'SET_CURRENT_USER', payload: profile });
+        }
+      }
+
+      // Listen for auth changes
+      authService.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          const profile = await authService.getUserProfileById(session.user.id);
+          if (profile) {
+            dispatch({ type: 'SET_CURRENT_USER', payload: profile });
+            
+            // Track login event
+            if (state.isLiveMode) {
+              await dbService.trackEvent('user_login', {
+                userId: profile.id,
+                role: profile.role
+              });
+            }
+          }
+        } else if (event === 'SIGNED_OUT') {
+          dispatch({ type: 'LOGOUT' });
+          dispatch({ type: 'CLEAR_SUBSCRIPTIONS' });
+        }
+      });
+    } catch (error) {
+      console.error('Auth initialization error:', error);
     }
   };
 
-  const navigationItems = getNavigationItems();
+  const loadLiveData = async () => {
+    if (!dbService.isAvailable()) {
+      console.warn('Cannot load live data - Supabase not available');
+      loadDemoData();
+      return;
+    }
+    
+    if (!dbService.isAvailable()) {
+      console.warn('Cannot load live data - Supabase not available');
+      loadDemoData();
+      return;
+    }
+    
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      const [
+        users, projects, tasks, attendance, inventory, 
+        leads, complaints, invoices, commissions
+      ] = await Promise.all([
+        dbService.getUserProfiles(),
+        dbService.getProjects(),
+        dbService.getTasks(),
+        dbService.getAttendance(),
+        dbService.getInventory(),
+        dbService.getLeads(),
+        dbService.getComplaints(),
+        dbService.getInvoices(),
+        dbService.getCommissions()
+      ]);
+
+      dispatch({ type: 'SET_USERS', payload: users });
+      dispatch({ type: 'SET_PROJECTS', payload: projects });
+      dispatch({ type: 'SET_TASKS', payload: tasks });
+      dispatch({ type: 'SET_ATTENDANCE', payload: attendance });
+      dispatch({ type: 'SET_INVENTORY', payload: inventory });
+      dispatch({ type: 'SET_LEADS', payload: leads });
+      dispatch({ type: 'SET_COMPLAINTS', payload: complaints });
+      dispatch({ type: 'SET_INVOICES', payload: invoices });
+      dispatch({ type: 'SET_COMMISSIONS', payload: commissions });
+
+      // Load notifications for current user
+      if (state.currentUser) {
+        const notifications = await dbService.getNotifications(state.currentUser.id);
+        dispatch({ type: 'SET_NOTIFICATIONS', payload: notifications });
+      }
+      
+    } catch (error) {
+      console.error('Error loading live data:', error);
+      dispatch({ type: 'SET_ERROR', payload: error.message });
+      // Fallback to demo data if live data fails
+      console.log('Falling back to demo data');
+      loadDemoData();
+      // Fallback to demo data if live data fails
+      console.log('Falling back to demo data');
+      loadDemoData();
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const loadDemoData = () => {
+    console.log('Loading demo data');
+    console.log('Loading demo data');
+    dispatch({ type: 'SET_USERS', payload: mockUsers });
+    dispatch({ type: 'SET_PROJECTS', payload: mockProjects });
+    dispatch({ type: 'SET_TASKS', payload: mockTasks });
+    dispatch({ type: 'SET_ATTENDANCE', payload: mockAttendance });
+    dispatch({ type: 'SET_INVENTORY', payload: mockInventory });
+    dispatch({ type: 'SET_LEADS', payload: mockLeads });
+    dispatch({ type: 'SET_COMPLAINTS', payload: mockComplaints });
+    dispatch({ type: 'SET_INVOICES', payload: mockInvoices });
+    dispatch({ type: 'SET_NOTIFICATIONS', payload: mockNotifications });
+    dispatch({ type: 'SET_COMMISSIONS', payload: [] });
+  };
+
+  const setupRealTimeSubscriptions = () => {
+    if (!state.isLiveMode || !dbService.isAvailable()) return;
+
+    // Subscribe to projects changes
+    const projectsSub = dbService.subscribeToTable('projects', (payload) => {
+      dispatch({
+        type: 'REALTIME_UPDATE',
+        payload: {
+          table: 'projects',
+          eventType: payload.eventType,
+          record: payload.new || payload.old
+        }
+      });
+    });
+
+    // Subscribe to tasks changes
+    const tasksSub = dbService.subscribeToTable('tasks', (payload) => {
+      dispatch({
+        type: 'REALTIME_UPDATE',
+        payload: {
+          table: 'tasks',
+          eventType: payload.eventType,
+          record: payload.new || payload.old
+        }
+      });
+    });
+
+    // Subscribe to notifications for current user
+    if (state.currentUser) {
+      const notificationsSub = dbService.subscribeToTable('notifications', (payload) => {
+        if (payload.new?.user_id === state.currentUser.id) {
+          dispatch({
+            type: 'REALTIME_UPDATE',
+            payload: {
+              table: 'notifications',
+              eventType: payload.eventType,
+              record: payload.new || payload.old
+            }
+          });
+        }
+      }, { filter: `user_id=eq.${state.currentUser.id}` });
+
+      dispatch({ type: 'ADD_SUBSCRIPTION', payload: notificationsSub });
+    }
+
+    dispatch({ type: 'ADD_SUBSCRIPTION', payload: projectsSub });
+    dispatch({ type: 'ADD_SUBSCRIPTION', payload: tasksSub });
+  };
+
+  // Mode switching
+  const toggleMode = async (isLive) => {
+    // Only allow live mode if Supabase is available
+    if (isLive && !dbService.isAvailable()) {
+      showToast('Live mode not available - Supabase not configured', 'error');
+      return;
+    }
+    
+    // Only allow live mode if Supabase is available
+    if (isLive && !dbService.isAvailable()) {
+      showToast('Live mode not available - Supabase not configured', 'error');
+      return;
+    }
+    
+    dispatch({ type: 'SET_LIVE_MODE', payload: isLive });
+    
+    if (isLive) {
+      await loadLiveData();
+      setupRealTimeSubscriptions();
+    } else {
+      loadDemoData();
+      // Clear subscriptions
+      state.realTimeSubscriptions.forEach(sub => {
+        if (sub && typeof sub.unsubscribe === 'function') {
+          sub.unsubscribe();
+        }
+      });
+      dispatch({ type: 'CLEAR_SUBSCRIPTIONS' });
+    }
+  };
+
+  // Authentication methods
+  const setCurrentUser = (user) => {
+    dispatch({ type: 'SET_CURRENT_USER', payload: user });
+  };
+
+  const logout = async () => {
+    try {
+      if (state.isLiveMode) {
+        await authService.signOut();
+      }
+      dispatch({ type: 'LOGOUT' });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const loginDemo = (email) => {
+    const user = mockUsers.find(u => u.email === email);
+    if (user) {
+      dispatch({ type: 'SET_CURRENT_USER', payload: user });
+      return user;
+    }
+    return null;
+  };
+
+  const loginLive = async (email, password) => {
+    if (!authService.isAvailable()) {
+      throw new Error('Live mode not available - use demo mode');
+    }
+    
+    if (!authService.isAvailable()) {
+      throw new Error('Live mode not available - use demo mode');
+    }
+    
+    try {
+      const { user } = await authService.signIn(email, password);
+      
+      if (user) {
+        const profile = await authService.getUserProfileById(user.id);
+        if (profile) {
+          if (profile.status === 'rejected') {
+            throw new Error('Your account has been rejected. Please contact support.');
+          }
+          
+          dispatch({ type: 'SET_CURRENT_USER', payload: profile });
+          return profile;
+        }
+      }
+    } catch (error) {
+      console.error('Live login error:', error);
+      throw error;
+    }
+  };
+
+  // Data management methods
+  const createDemoUsers = async () => {
+    try {
+      const results = await authService.createDemoUsers();
+      console.log('Demo users creation results:', results);
+      return results;
+    } catch (error) {
+      console.error('Error creating demo users:', error);
+      throw error;
+    }
+  };
+
+  // CRUD operations that work in both modes
+  const addLead = async (leadData) => {
+    if (state.isLiveMode) {
+      try {
+        const newLead = await dbService.createLead(leadData);
+        // Real-time subscription will handle state update
+        return newLead;
+      } catch (error) {
+        console.error('Error adding lead:', error);
+        throw error;
+      }
+    } else {
+      // Demo mode - update local state
+      const lead = {
+        id: `lead-${Date.now()}`,
+        ...leadData,
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+      dispatch({ type: 'ADD_LEAD', payload: lead });
+      return lead;
+    }
+  };
+
+  const updateLead = async (id, updates) => {
+    if (state.isLiveMode) {
+      try {
+        const updatedLead = await dbService.updateLead(id, updates);
+        // Real-time subscription will handle state update
+        return updatedLead;
+      } catch (error) {
+        console.error('Error updating lead:', error);
+        throw error;
+      }
+    } else {
+      // Demo mode
+      dispatch({
+        type: 'UPDATE_LEAD',
+        payload: { id, updates }
+      });
+    }
+  };
+
+  const addComplaint = async (complaintData) => {
+    if (state.isLiveMode) {
+      try {
+        const newComplaint = await dbService.createComplaint(complaintData);
+        return newComplaint;
+      } catch (error) {
+        console.error('Error adding complaint:', error);
+        throw error;
+      }
+    } else {
+      const complaint = {
+        id: `comp-${Date.now()}`,
+        ...complaintData,
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+      dispatch({ type: 'ADD_COMPLAINT', payload: complaint });
+      return complaint;
+    }
+  };
+
+  const updateProject = async (id, updates) => {
+    if (state.isLiveMode) {
+      try {
+        const updatedProject = await dbService.updateProject(id, updates);
+        return updatedProject;
+      } catch (error) {
+        console.error('Error updating project:', error);
+        throw error;
+      }
+    } else {
+      dispatch({
+        type: 'UPDATE_PROJECT_STATUS',
+        payload: { projectId: id, ...updates }
+      });
+    }
+  };
+
+  const updateTask = async (id, updates) => {
+    if (state.isLiveMode) {
+      try {
+        const updatedTask = await dbService.updateTask(id, updates);
+        return updatedTask;
+      } catch (error) {
+        console.error('Error updating task:', error);
+        throw error;
+      }
+    } else {
+      dispatch({
+        type: 'UPDATE_TASK_STATUS',
+        payload: { taskId: id, ...updates }
+      });
+    }
+  };
+
+  const addAttendance = async (attendanceData) => {
+    if (state.isLiveMode) {
+      try {
+        const newAttendance = await dbService.createAttendance(attendanceData);
+        return newAttendance;
+      } catch (error) {
+        console.error('Error adding attendance:', error);
+        throw error;
+      }
+    } else {
+      dispatch({ type: 'ADD_ATTENDANCE', payload: attendanceData });
+    }
+  };
+
+  const updateAttendance = async (id, updates) => {
+    if (state.isLiveMode) {
+      try {
+        const updatedAttendance = await dbService.updateAttendance(id, updates);
+        return updatedAttendance;
+      } catch (error) {
+        console.error('Error updating attendance:', error);
+        throw error;
+      }
+    } else {
+      dispatch({
+        type: 'UPDATE_ATTENDANCE',
+        payload: { id, ...updates }
+      });
+    }
+  };
+
+  const updateUserStatus = async (userId, status, role = null) => {
+    if (state.isLiveMode) {
+      try {
+        const updates = { status };
+        if (role) updates.role = role;
+        
+        await dbService.updateUserProfile(userId, updates);
+        
+        // Refresh users list
+        const users = await dbService.getUserProfiles();
+        dispatch({ type: 'SET_USERS', payload: users });
+        
+      } catch (error) {
+        console.error('Error updating user status:', error);
+        throw error;
+      }
+    } else {
+      dispatch({
+        type: 'UPDATE_USER_STATUS',
+        payload: { userId, status, role }
+      });
+    }
+  };
+
+  // File upload
+  const uploadFile = async (file, metadata) => {
+    if (state.isLiveMode) {
+      try {
+        return await dbService.uploadDocument(file, metadata);
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        throw error;
+      }
+    } else {
+      // Demo mode - simulate upload
+      return {
+        id: `doc-${Date.now()}`,
+        name: file.name,
+        type: metadata.type,
+        file_path: `demo/${file.name}`,
+        uploaded_by: metadata.uploadedBy
+      };
+    }
+  };
+
+  // Analytics tracking
+  const trackEvent = async (eventType, eventData = {}) => {
+    if (state.isLiveMode) {
+      await dbService.trackEvent(eventType, {
+        ...eventData,
+        userId: state.currentUser?.id
+      });
+    } else {
+      console.log('Demo Analytics Event:', eventType, eventData);
+    }
+  };
+
+  const showToast = (message, type = 'success') => {
+    console.log(`Toast: ${message} (${type})`);
+    // In production, integrate with your toast library
+    alert(`${type.toUpperCase()}: ${message}`);
+  };
+
+  const value = {
+    ...state,
+    dispatch,
+    
+    // Mode management
+    toggleMode,
+    
+    // Auth methods
+    setCurrentUser,
+    logout,
+    loginDemo,
+    loginLive,
+    createDemoUsers,
+    
+    // Data methods (work in both modes)
+    addLead,
+    updateLead,
+    addComplaint,
+    updateProject,
+    updateTask,
+    addAttendance,
+    updateAttendance,
+    updateUserStatus,
+    uploadFile,
+    trackEvent,
+    
+    // Utilities
+    showToast,
+    authService,
+    dbService
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Mobile sidebar backdrop */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:relative lg:flex lg:flex-col ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200">
-          <div className="flex items-center">
-            <img 
-              src="/WhatsApp Image 2025-08-11 at 21.49.19 copy copy.jpeg" 
-              alt="GreenSolar Logo" 
-              className="h-8 w-auto"
-            />
-            <span className="ml-2 text-xl font-semibold text-gray-900">GreenSolar</span>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1 rounded-md text-gray-400 hover:text-gray-500"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        <nav className="mt-6 px-3">
-          <div className="space-y-1">
-            {navigationItems.map((item) => (
-              <a
-                key={item.name}
-                href={item.href}
-                className="group flex items-center px-3 py-3 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-100 hover:text-gray-900 transition-colors duration-200"
-              >
-                <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
-                {item.name}
-              </a>
-            ))}
-          </div>
-        </nav>
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top navigation */}
-        <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-
-            <div className="flex-1 lg:flex lg:items-center lg:justify-between">
-              <div className="flex-1">
-                <h1 className="text-2xl font-semibold text-gray-900 capitalize">
-                  {currentUser?.role} Dashboard
-                </h1>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                {/* Mode Toggle */}
-                <div className="flex items-center space-x-2 px-3 py-1 bg-gray-100 rounded-lg">
-                  <span className={`text-xs font-medium ${!isLiveMode ? 'text-blue-600' : 'text-gray-500'}`}>
-                    Demo
-                  </span>
-                  <button
-                    onClick={() => toggleMode(!isLiveMode)}
-                    className="relative"
-                  >
-                    {isLiveMode ? (
-                      <ToggleRight className="w-6 h-6 text-green-600" />
-                    ) : (
-                      <ToggleLeft className="w-6 h-6 text-gray-400" />
-                    )}
-                  </button>
-                  <span className={`text-xs font-medium ${isLiveMode ? 'text-green-600' : 'text-gray-500'}`}>
-                    Live
-                  </span>
-                  {isLiveMode && <Zap className="w-4 h-4 text-green-600" />}
-                </div>
-
-                {/* Notifications */}
-                <button className="relative p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 rounded-lg">
-                  <Bell className="w-6 h-6" />
-                  {unreadNotifications > 0 && (
-                    <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {unreadNotifications}
-                    </span>
-                  )}
-                </button>
-
-                {/* Profile dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                    className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100"
-                  >
-                    {currentUser?.avatar ? (
-                      <img
-                        src={currentUser.avatar}
-                        alt={currentUser.name}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                        <User className="w-5 h-5 text-gray-600" />
-                      </div>
-                    )}
-                    <span className="hidden sm:block text-sm font-medium text-gray-700">
-                      {currentUser?.name}
-                    </span>
-                  </button>
-
-                  {profileMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                      <div className="px-4 py-2 border-b border-gray-200">
-                        <p className="text-sm font-medium text-gray-900">{currentUser?.name}</p>
-                        <p className="text-sm text-gray-500 capitalize">{currentUser?.role}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setProfileMenuOpen(false);
-                          // Profile settings would go here
-                        }}
-                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        <Settings className="mr-3 h-4 w-4" />
-                        Settings
-                      </button>
-                      <button
-                        onClick={() => {
-                          setProfileMenuOpen(false);
-                          logout();
-                        }}
-                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        <LogOut className="mr-3 h-4 w-4" />
-                        Sign out
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
-          {children}
-        </main>
-      </div>
-    </div>
+    <AppContext.Provider value={value}>
+      {children}
+    </AppContext.Provider>
   );
-};
+}
 
-export default AppLayout;
+export function useApp() {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+}

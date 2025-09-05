@@ -55,22 +55,63 @@ const CompanyDashboard = () => {
     totalValue: inventory.reduce((sum, i) => sum + (i.cost || 0), 0)
   };
 
-  const handleApproveUser = (userId, role) => {
+  // const handleApproveUser = (userId, role) => {
+  //   dispatch({
+  //     type: 'UPDATE_USER_STATUS',
+  //     payload: { userId, status: USER_STATUS.ACTIVE, role }
+  //   });
+  //   showToast('User approved successfully!');
+  // };
+
+  // const handleRejectUser = (userId) => {
+  //   dispatch({
+  //     type: 'UPDATE_USER_STATUS',
+  //     payload: { userId, status: USER_STATUS.REJECTED }
+  //   });
+  //   showToast('User rejected');
+  // };
+  const handleApproveUser = async (userId, role) => {
+  try {
+    // ✅ UPDATE DATABASE DIRECTLY
+    const updatedUser = await dbService.updateUserProfile(userId, {
+      status: 'active',
+      role: role,
+      approved_at: new Date().toISOString()
+    });
+
+    // Update local state to reflect changes immediately
     dispatch({
       type: 'UPDATE_USER_STATUS',
-      payload: { userId, status: USER_STATUS.ACTIVE, role }
+      payload: { userId, status: 'active', role }
     });
+
     showToast('User approved successfully!');
-  };
+  } catch (error) {
+    console.error('Error approving user:', error);
+    showToast('Error approving user', 'error');
+  }
+};
 
-  const handleRejectUser = (userId) => {
+const handleRejectUser = async (userId) => {
+  try {
+    // ✅ UPDATE DATABASE DIRECTLY
+    const updatedUser = await dbService.updateUserProfile(userId, {
+      status: 'rejected',
+      rejected_at: new Date().toISOString()
+    });
+
+    // Update local state
     dispatch({
       type: 'UPDATE_USER_STATUS',
-      payload: { userId, status: USER_STATUS.REJECTED }
+      payload: { userId, status: 'rejected' }
     });
-    showToast('User rejected');
-  };
 
+    showToast('User rejected');
+  } catch (error) {
+    console.error('Error rejecting user:', error);
+    showToast('Error rejecting user', 'error');
+  }
+};
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between">

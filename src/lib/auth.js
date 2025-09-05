@@ -1,40 +1,147 @@
+
+//  import { supabase } from './supabase.js';
+// export const authService = {
+//   // Sign up with email and password
+//   async signUp(email, password, userData) {
+//     try {
+//       const { data, error } = await supabase.auth.signUp({
+//         email,
+//         password,
+//         options: {
+//           data: {
+//             name: userData.name,
+//             role: userData.role,
+//             phone: userData.phone,
+//             status: userData.status || 'pending',
+//             ...userData
+//           }
+//         }
+//       });
+//       if (error) throw error;
+//       return data;
+//     } catch (error) {
+//       console.error('Signup error:', error);
+//       throw error;
+//     }
+//   },
+//   // Sign in with email and password
+//   async signIn(email, password) {
+//     try {
+//       const { data, error } = await supabase.auth.signInWithPassword({
+//         email,
+//         password
+//       });
+//       if (error) throw error;
+//       return data;
+//     } catch (error) {
+//       console.error('Signin error:', error);
+//       throw error;
+//     }
+//   },
+//   // Sign out
+//   async signOut() {
+//     try {
+//       const { error } = await supabase.auth.signOut();
+//       if (error) throw error;
+//     } catch (error) {
+//       console.error('Signout error:', error);
+//       throw error;
+//     }
+//   },
+//   // Get current session
+//   async getSession() {
+//     try {
+//       const { data: { session }, error } = await supabase.auth.getSession();
+//       if (error) throw error;
+//       return session;
+//     } catch (error) {
+//       console.error('Get session error:', error);
+//       throw error;
+//     }
+//   },
+//   // Get current user
+//   async getCurrentUser() {
+//     try {
+//       const { data: { user }, error } = await supabase.auth.getUser();
+//       if (error) throw error;
+//       return user;
+//     } catch (error) {
+//       console.error('Get user error:', error);
+//       throw error;
+//     }
+//   },
+//   // Listen to auth state changes
+//   onAuthStateChange(callback) {
+//     return supabase.auth.onAuthStateChange(callback);
+//   },
+//   // Update user profile after registration
+//   async updateUserProfile(userId, profileData) {
+//     try {
+//       const { data, error } = await supabase
+//         .from('users')
+//         .update(profileData)
+//         .eq('id', userId)
+//         .select()
+//         .single();
+//       if (error) throw error;
+//       return data;
+//     } catch (error) {
+//       console.error('Update profile error:', error);
+//       throw error;
+//     }
+//   }
+// };
+
 import { supabase, dbService } from './supabase.js';
 
 export const authService = {
-  // Check if Supabase auth is available
+  // Check if authentication service is available
   isAvailable() {
-    return supabase !== null;
+    return supabase && typeof supabase.auth !== 'undefined';
   },
 
-  // Email/password sign up
+  // Sign up with email and password - ✅ FIXED to create database profile
   async signUp(email, password, userData) {
-    if (!this.isAvailable()) {
-      throw new Error('Authentication service not available');
-    }
-
     try {
+      // Create auth user first
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             name: userData.name,
-            phone: userData.phone
+            role: userData.role,
+            phone: userData.phone,
+            status: userData.status || 'pending',
+            ...userData
           }
         }
       });
 
       if (error) throw error;
 
-      // Create user profile if signup successful
+      // ✅ CREATE DATABASE PROFILE USING YOUR EXISTING METHOD
       if (data.user) {
-        await this.createUserProfile(data.user.id, {
-          email,
+        const profileData = {
+          id: data.user.id, // Use auth user ID
+          email: data.user.email,
           name: userData.name,
           phone: userData.phone,
-          role: userData.role || 'customer',
-          status: userData.role === 'customer' ? 'active' : 'pending'
-        });
+          role: userData.role || 'pending',
+          status: userData.status || 'pending',
+          created_at: new Date().toISOString(),
+          ...userData
+        };
+
+        // Call your existing createUserProfile method
+        try {
+          const profile = await dbService.createUserProfile(profileData);
+          console.log('✅ User profile created in database:', profile);
+          return { ...data, profile };
+        } catch (profileError) {
+          console.error('❌ Error creating user profile:', profileError);
+          // Don't throw error here, auth user is already created
+        }
       }
 
       return data;
@@ -44,7 +151,7 @@ export const authService = {
     }
   },
 
-  // Email/password sign in
+  // Sign in with email and password
   async signIn(email, password) {
     if (!this.isAvailable()) {
       throw new Error('Authentication service not available');
@@ -59,146 +166,67 @@ export const authService = {
       if (error) throw error;
       return data;
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error('Signin error:', error);
       throw error;
     }
   },
 
+  // Sign out
   async signOut() {
-    if (!this.isAvailable()) {
-      return;
-    }
-
+    if (!this.isAvailable()) return;
+    
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error('Signout error:', error);
       throw error;
     }
   },
 
+  // Get current session
   async getSession() {
-    if (!this.isAvailable()) {
-      return null;
-    }
-
+    if (!this.isAvailable()) return null;
+    
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
       return session;
     } catch (error) {
       console.error('Get session error:', error);
-      return null;
+      throw error;
     }
   },
 
+  // Get current user
   async getCurrentUser() {
-    if (!this.isAvailable()) {
-      return null;
-    }
-
+    if (!this.isAvailable()) return null;
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
       return user;
     } catch (error) {
-      console.error('Get current user error:', error);
-      return null;
-    }
-  },
-
-  async getUserProfileById(userId) {
-    if (!this.isAvailable()) {
-      return null;
-    }
-
-    try {
-      return await dbService.getUserProfileById(userId);
-    } catch (error) {
-      console.error('Get user profile error:', error);
-      return null;
-    }
-  },
-
-  async createUserProfile(userId, profileData) {
-    if (!this.isAvailable()) {
-      return profileData;
-    }
-
-    try {
-      const profile = await dbService.createUserProfile({
-        id: userId,
-        ...profileData,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
-
-      return profile;
-    } catch (error) {
-      console.error('Profile creation error:', error);
+      console.error('Get user error:', error);
       throw error;
     }
   },
 
-  async updateUserProfile(userId, updates) {
-    if (!this.isAvailable()) {
-      return updates;
-    }
-
-    try {
-      return await dbService.updateUserProfile(userId, {
-        ...updates,
-        updated_at: new Date().toISOString()
-      });
-    } catch (error) {
-      console.error('Profile update error:', error);
-      throw error;
-    }
-  },
-
+  // Listen to auth state changes
   onAuthStateChange(callback) {
     if (!this.isAvailable()) {
       return { data: { subscription: { unsubscribe: () => {} } } };
     }
-
     return supabase.auth.onAuthStateChange(callback);
   },
 
-  // Phone-based OTP authentication
-  async sendOTP(phone) {
-    if (!this.isAvailable()) {
-      throw new Error('Authentication service not available');
-    }
-
-    try {
-      const { data, error } = await supabase.auth.signInWithOtp({
-        phone: phone
-      });
-
-      if (error) throw error;
-      return { success: true, data };
-    } catch (error) {
-      console.error('Send OTP error:', error);
-      throw error;
-    }
+  // Update user profile after registration
+  async updateUserProfile(userId, profileData) {
+    return await dbService.updateUserProfile(userId, profileData);
   },
 
-  async verifyOTP(phone, token) {
-    if (!this.isAvailable()) {
-      throw new Error('Authentication service not available');
-    }
-
-    try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        phone: phone,
-        token: token,
-        type: 'sms'
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('OTP verification error:', error);
-      throw error;
-    }
+  // Get user profile by ID
+  async getUserProfileById(userId) {
+    return await dbService.getUserProfileById(userId);
   }
 };

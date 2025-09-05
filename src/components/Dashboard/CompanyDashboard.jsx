@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
-import { USER_STATUS, PROJECT_STATUS, INVENTORY_STATUS, COMPLAINT_STATUS } from '../../types/index.js';
+import { USER_STATUS, PROJECT_STATUS, INVENTORY_STATUS, COMPLAINT_STATUS, TASK_STATUS } from '../../types/index.js';
 import InventoryManager from '../Common/InventoryManager.jsx';
 import PerformanceChart from '../Common/PerformanceChart.jsx';
 import ProjectPipeline from '../Common/ProjectPipeline.jsx';
@@ -19,7 +19,10 @@ import {
   UserCheck,
   UserX,
   Building,
-  BarChart3
+  BarChart3,
+  Plus,
+  Eye,
+  X
 } from 'lucide-react';
 
 const CompanyDashboard = () => {
@@ -41,6 +44,19 @@ const CompanyDashboard = () => {
   
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedStaff, setSelectedStaff] = useState(null);
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [newProject, setNewProject] = useState({
+    title: '',
+    customerId: '',
+    agentId: '',
+    type: 'solar',
+    location: '',
+    value: '',
+    description: '',
+    serialNumbers: []
+  });
 
   const pendingUsers = users.filter(u => u.status === USER_STATUS.PENDING);
   const activeProjects = projects.filter(p => p.status === PROJECT_STATUS.IN_PROGRESS);
@@ -53,6 +69,62 @@ const CompanyDashboard = () => {
     assigned: inventory.filter(i => i.status === INVENTORY_STATUS.ASSIGNED).length,
     installed: inventory.filter(i => i.status === INVENTORY_STATUS.INSTALLED).length,
     totalValue: inventory.reduce((sum, i) => sum + (i.cost || 0), 0)
+  };
+
+  const handleCreateProject = (e) => {
+    e.preventDefault();
+    
+    if (!newProject.customerId || !newProject.agentId || newProject.serialNumbers.length === 0) {
+      showToast('Please fill all required fields and assign equipment', 'error');
+      return;
+    }
+
+    const customer = users.find(u => u.id === newProject.customerId);
+    const agent = users.find(u => u.id === newProject.agentId);
+    
+    const project = {
+      id: `proj-${Date.now()}`,
+      ...newProject,
+      customerRefNumber: customer.customerRefNumber,
+      customerName: customer.name,
+      assignedTo: agent.id,
+      assignedToName: agent.name,
+      status: PROJECT_STATUS.APPROVED,
+      pipelineStage: 'ready_for_installation',
+      installationApproved: false,
+      startDate: new Date().toISOString().split('T')[0],
+      coordinates: { lat: 19.0760, lng: 72.8777 }
+    };
+
+    // Update inventory status to assigned
+    newProject.serialNumbers.forEach(serialNumber => {
+      dispatch({
+        type: 'UPDATE_INVENTORY_STATUS',
+        payload: {
+          serialNumber,
+          status: INVENTORY_STATUS.ASSIGNED,
+          updates: {
+            assignedTo: project.id,
+            assignedDate: new Date().toISOString().split('T')[0],
+            assignedBy: currentUser.id
+          }
+        }
+      });
+    });
+
+    dispatch({ type: 'ADD_PROJECT', payload: project });
+    showToast('Project created successfully!');
+    setShowCreateProject(false);
+    setNewProject({
+      title: '',
+      customerId: '',
+      agentId: '',
+      type: 'solar',
+      location: '',
+      value: '',
+      description: '',
+      serialNumbers: []
+    });
   };
 
   const handleApproveUser = (userId, role) => {
@@ -69,6 +141,142 @@ const CompanyDashboard = () => {
       payload: { userId, status: USER_STATUS.REJECTED }
     });
     showToast('User rejected');
+  };
+
+  const handleViewCustomerDetails = (customerId) => {
+    const customer = users.find(u => u.id === customerId);
+    const customerProjects = projects.filter(p => p.customerId === customerId);
+    setSelectedCustomer({ ...customer, projects: customerProjects });
+    setShowCustomerDetails(true);
+  };
+
+  const ProjectCard = ({ project }) => {
+    const customer = users.find(u => u.id === project.customerId);
+    const agent = users.find(u => u.id === project.assignedTo);
+    const assignedEquipment = inventory.filter(item => 
+      project.serialNumbers?.includes(item.serialNumber)
+    );
+    
+    return (
+      <div className="border border-gray-200 rounded-lg p-6 bg-white">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <div className="flex items-center space-x-3 mb-2">
+              <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
+              {project.installationApproved && (
+                <div className="flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Installation Complete
+                </div>
+              )}
+              <button
+                onClick={() => handleViewCustomerDetails(project.customerId)}
+                className="p-1 text-gray-400 hover:text-blue-600 rounded"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+              <div>
+                <p><span className="font-medium">Customer:</span> {project.customerName}</p>
+                <p><span className="font-medium">Ref:</span> {project.customerRefNumber}</p>
+                <p><span className="font-medium">Agent:</span> {agent?.name || 'Unassigned'}</p>
+              </div>
+              <div>
+                <p><span className="font-medium">Location:</span> {project.location}</p>
+                <p><span className="font-medium">Value:</span> ₹{project.value.toLocaleString()}</p>
+                <p><span className="font-medium">Type:</span> {project.type}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Assigned Equipment */}
+        {assignedEquipment.length > 0 && (
+          <div className="bg-gray-50 rounded-lg p-4 mb-4">
+            <h5 className="font-medium text-gray-900 mb-2">Assigned Equipment:</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {assignedEquipment.map(item => (
+                <div key={item.id} className="flex items-center justify-between bg-white border border-gray-200 rounded px-3 py-2">
+                  <div>
+                    <span className="text-sm font-mono">{item.serialNumber}</span>
+                    <p className="text-xs text-gray-500">{item.model}</p>
+                  </div>
+                  <span className={`w-2 h-2 rounded-full ${
+                    item.status === INVENTORY_STATUS.INSTALLED ? 'bg-green-500' :
+                    item.status === INVENTORY_STATUS.ASSIGNED ? 'bg-blue-500' : 'bg-gray-400'
+                  }`}></span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pipeline Stage Control */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Pipeline Stage:
+              </label>
+              <select
+                value={project.pipelineStage || 'ready_for_installation'}
+                onChange={(e) => {
+                  dispatch({
+                    type: 'UPDATE_PROJECT_PIPELINE',
+                    payload: { projectId: project.id, pipelineStage: e.target.value }
+                  });
+                  showToast('Project stage updated');
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="lead_generated">Lead Generated</option>
+                <option value="quotation_sent">Quotation Sent</option>
+                <option value="bank_process">Bank Process</option>
+                <option value="meter_applied">Meter Applied</option>
+                <option value="ready_for_installation">Ready for Installation</option>
+                <option value="installation_complete">Installation Complete</option>
+                <option value="commissioned">Commissioned</option>
+                <option value="active">Active</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Project Status:
+              </label>
+              <select
+                value={project.status}
+                onChange={(e) => {
+                  dispatch({
+                    type: 'UPDATE_PROJECT_STATUS',
+                    payload: { projectId: project.id, status: e.target.value }
+                  });
+                  showToast('Project status updated');
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+          
+          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+            project.status === PROJECT_STATUS.COMPLETED
+              ? 'bg-green-100 text-green-800'
+              : project.status === PROJECT_STATUS.IN_PROGRESS
+              ? 'bg-blue-100 text-blue-800'
+              : 'bg-yellow-100 text-yellow-800'
+          }`}>
+            {project.status.replace('_', ' ')}
+          </span>
+        </div>
+      </div>
+    );
   };
 
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
@@ -429,7 +637,16 @@ const CompanyDashboard = () => {
 
           {activeTab === 'projects' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">Project Management</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Project Management</h3>
+                <button
+                  onClick={() => setShowCreateProject(true)}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Project
+                </button>
+              </div>
               
               {/* New Complaints Section */}
               {complaints.filter(c => c.status === COMPLAINT_STATUS.OPEN && !c.assignedTo).length > 0 && (
@@ -499,116 +716,10 @@ const CompanyDashboard = () => {
                 </div>
               )}
 
+              {/* Projects Grid */}
               <div className="grid gap-6">
                 {projects.map(project => (
-                  <div key={project.id} className="border border-gray-200 rounded-lg p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
-                        <p className="text-gray-600 mt-1">{project.description}</p>
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Users className="w-4 h-4 mr-1" />
-                            {project.customerName} (Ref: {project.customerRefNumber})
-                          </span>
-                          <span className="flex items-center">
-                            <MapPin className="w-4 h-4 mr-1" />
-                            {project.location}
-                          </span>
-                          <span className="flex items-center">
-                            <DollarSign className="w-4 h-4 mr-1" />
-                            ₹{project.value.toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          project.status === PROJECT_STATUS.COMPLETED
-                            ? 'bg-green-100 text-green-800'
-                            : project.status === PROJECT_STATUS.IN_PROGRESS
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {project.status.replace('_', ' ')}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Assigned Equipment */}
-                    {project.serialNumbers && project.serialNumbers.length > 0 && (
-                      <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                        <h5 className="font-medium text-gray-900 mb-2">Assigned Equipment:</h5>
-                        <div className="flex flex-wrap gap-2">
-                          {project.serialNumbers.map(serial => {
-                            const item = inventory.find(i => i.serialNumber === serial);
-                            return (
-                              <div key={serial} className="flex items-center space-x-2 bg-white border border-gray-200 rounded px-3 py-1">
-                                <Package className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm font-mono">{serial}</span>
-                                {item && (
-                                  <span className={`w-2 h-2 rounded-full ${
-                                    item.status === INVENTORY_STATUS.INSTALLED ? 'bg-green-500' :
-                                    item.status === INVENTORY_STATUS.ASSIGNED ? 'bg-blue-500' : 'bg-gray-400'
-                                  }`}></span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Pipeline Stage */}
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Pipeline Stage:
-                      </label>
-                      <select
-                        value={project.pipelineStage || 'lead_generated'}
-                        onChange={(e) => {
-                          dispatch({
-                            type: 'UPDATE_PROJECT_PIPELINE',
-                            payload: { projectId: project.id, pipelineStage: e.target.value }
-                          });
-                          showToast('Project stage updated');
-                        }}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      >
-                        <option value="lead_generated">Lead Generated</option>
-                        <option value="quotation_sent">Quotation Sent</option>
-                        <option value="bank_process">Bank Process</option>
-                        <option value="meter_applied">Meter Applied</option>
-                        <option value="ready_for_installation">Ready for Installation</option>
-                        <option value="installation_complete">Installation Complete</option>
-                        <option value="commissioned">Commissioned</option>
-                        <option value="active">Active</option>
-                      </select>
-                    </div>
-
-                    {/* Admin Project Status Control */}
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Project Status (Admin):
-                      </label>
-                      <select
-                        value={project.status}
-                        onChange={(e) => {
-                          dispatch({
-                            type: 'UPDATE_PROJECT_STATUS',
-                            payload: { projectId: project.id, status: e.target.value }
-                          });
-                          showToast('Project status updated');
-                        }}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                    </div>
-                  </div>
+                  <ProjectCard key={project.id} project={project} />
                 ))}
               </div>
             </div>
@@ -675,6 +786,289 @@ const CompanyDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Create Project Modal */}
+      {showCreateProject && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Create New Project</h3>
+                <button
+                  onClick={() => setShowCreateProject(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateProject} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Project Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={newProject.title}
+                      onChange={(e) => setNewProject({...newProject, title: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Customer *
+                    </label>
+                    <select
+                      value={newProject.customerId}
+                      onChange={(e) => setNewProject({...newProject, customerId: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Select Customer</option>
+                      {users.filter(u => u.role === 'customer' && u.status === 'active').map(customer => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name} ({customer.customerRefNumber})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assign Agent *
+                    </label>
+                    <select
+                      value={newProject.agentId}
+                      onChange={(e) => setNewProject({...newProject, agentId: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Select Agent</option>
+                      {users.filter(u => u.role === 'agent' && u.status === 'active').map(agent => (
+                        <option key={agent.id} value={agent.id}>{agent.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Project Type
+                    </label>
+                    <select
+                      value={newProject.type}
+                      onChange={(e) => setNewProject({...newProject, type: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="solar">Solar</option>
+                      <option value="wind">Wind</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Location *
+                    </label>
+                    <input
+                      type="text"
+                      value={newProject.location}
+                      onChange={(e) => setNewProject({...newProject, location: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Project Value (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      value={newProject.value}
+                      onChange={(e) => setNewProject({...newProject, value: parseInt(e.target.value)})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={newProject.description}
+                    onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Equipment Assignment */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Assign Equipment *
+                  </label>
+                  <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
+                    {inventory.filter(item => item.status === INVENTORY_STATUS.IN_STOCK).map(item => (
+                      <label key={item.id} className="flex items-center p-3 hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newProject.serialNumbers.includes(item.serialNumber)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewProject({
+                                ...newProject,
+                                serialNumbers: [...newProject.serialNumbers, item.serialNumber]
+                              });
+                            } else {
+                              setNewProject({
+                                ...newProject,
+                                serialNumbers: newProject.serialNumbers.filter(s => s !== item.serialNumber)
+                              });
+                            }
+                          }}
+                          className="mr-3"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{item.serialNumber}</div>
+                          <div className="text-sm text-gray-600">{item.companyName} - {item.model}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Selected: {newProject.serialNumbers.length} items
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-3 pt-6">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    Create Project
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateProject(false)}
+                    className="flex-1 bg-gray-300 text-gray-700 py-3 px-4 rounded-lg hover:bg-gray-400 font-medium"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Details Modal */}
+      {showCustomerDetails && selectedCustomer && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Customer Details</h3>
+                <button
+                  onClick={() => setShowCustomerDetails(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Basic Information</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Name:</span>
+                        <span className="font-medium">{selectedCustomer.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Email:</span>
+                        <span className="font-medium">{selectedCustomer.email}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Phone:</span>
+                        <span className="font-medium">{selectedCustomer.phone}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Reference:</span>
+                        <span className="font-medium">{selectedCustomer.customerRefNumber}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Location:</span>
+                        <span className="font-medium">{selectedCustomer.location}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Project Summary</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total Projects:</span>
+                        <span className="font-medium">{selectedCustomer.projects?.length || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Active Projects:</span>
+                        <span className="font-medium">
+                          {selectedCustomer.projects?.filter(p => p.status === PROJECT_STATUS.IN_PROGRESS).length || 0}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Completed:</span>
+                        <span className="font-medium">
+                          {selectedCustomer.projects?.filter(p => p.status === PROJECT_STATUS.COMPLETED).length || 0}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total Value:</span>
+                        <span className="font-medium">
+                          ₹{selectedCustomer.projects?.reduce((sum, p) => sum + p.value, 0).toLocaleString() || '0'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer Projects */}
+                {selectedCustomer.projects && selectedCustomer.projects.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Customer Projects</h4>
+                    <div className="space-y-3">
+                      {selectedCustomer.projects.map(project => (
+                        <div key={project.id} className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h5 className="font-medium text-gray-900">{project.title}</h5>
+                              <p className="text-sm text-gray-600">{project.location}</p>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              project.status === PROJECT_STATUS.COMPLETED
+                                ? 'bg-green-100 text-green-800'
+                                : project.status === PROJECT_STATUS.IN_PROGRESS
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {project.status.replace('_', ' ')}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

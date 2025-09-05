@@ -207,6 +207,12 @@ function appReducer(state, action) {
         notifications: [action.payload, ...state.notifications]
       };
     
+    case 'ADD_PROJECT':
+      return {
+        ...state,
+        projects: [...state.projects, action.payload]
+      };
+    
     case 'MARK_NOTIFICATION_READ':
       return {
         ...state,

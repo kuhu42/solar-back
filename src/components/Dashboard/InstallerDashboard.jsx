@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
-import { TASK_STATUS, INVENTORY_STATUS } from '../../types/index.js';
+import { TASK_STATUS, INVENTORY_STATUS, PROJECT_STATUS } from '../../types/index.js';
 import { 
   MapPin, 
   Clock, 
@@ -11,11 +11,15 @@ import {
   Upload,
   FileText,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Package,
+  Eye,
+  X,
+  Users
 } from 'lucide-react';
 
 const InstallerDashboard = () => {
-  const { currentUser, tasks, attendance, inventory, projects, dispatch, showToast } = useApp();
+  const { currentUser, tasks, attendance, inventory, projects, users, dispatch, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
   const [checkingIn, setCheckingIn] = useState(false);
   const [scannerInput, setScannerInput] = useState('');
@@ -27,8 +31,14 @@ const InstallerDashboard = () => {
   const [completionPhotos, setCompletionPhotos] = useState([]);
   const [usedEquipment, setUsedEquipment] = useState([]);
   const [additionalSerials, setAdditionalSerials] = useState('');
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
 
   const myTasks = tasks.filter(t => t.assignedTo === currentUser?.id);
+  const myProjects = projects.filter(p => {
+    const projectTask = tasks.find(t => t.projectId === p.id && t.assignedTo === currentUser?.id);
+    return projectTask;
+  });
   const todayAttendance = attendance.find(a => 
     a.userId === currentUser?.id && 
     a.date === new Date().toISOString().split('T')[0]
@@ -163,6 +173,150 @@ const InstallerDashboard = () => {
     setAdditionalSerials('');
   };
 
+  const handleMarkInstallationComplete = (projectId) => {
+    if (!otpVerified) {
+      showToast('Please verify customer OTP before marking installation complete', 'error');
+      setShowOtpModal(true);
+      return;
+    }
+
+    // Mark project installation as approved
+    dispatch({
+      type: 'UPDATE_PROJECT',
+      payload: {
+        id: projectId,
+        updates: { installationApproved: true }
+      }
+    });
+
+    // Mark associated task as completed
+    const projectTask = tasks.find(t => t.projectId === projectId && t.assignedTo === currentUser.id);
+    if (projectTask) {
+      dispatch({
+        type: 'UPDATE_TASK_STATUS',
+        payload: {
+          taskId: projectTask.id,
+          status: TASK_STATUS.COMPLETED,
+          updates: {
+            completedBy: currentUser.id,
+            completedAt: new Date().toISOString()
+          }
+        }
+      });
+    }
+
+    showToast('Installation marked as complete!');
+  };
+
+  const handleViewCustomerDetails = (customerId) => {
+    const customer = users.find(u => u.id === customerId);
+    const customerProjects = projects.filter(p => p.customerId === customerId);
+    setSelectedCustomer({ ...customer, projects: customerProjects });
+    setShowCustomerDetails(true);
+  };
+
+  const ProjectCard = ({ project, showMarkComplete = false }) => {
+    const customer = users.find(u => u.id === project.customerId);
+    const agent = users.find(u => u.id === project.assignedTo);
+    const assignedEquipment = inventory.filter(item => 
+      project.serialNumbers?.includes(item.serialNumber)
+    );
+    
+    return (
+      <div className="border border-gray-200 rounded-lg p-6 bg-white">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <div className="flex items-center space-x-3 mb-2">
+              <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
+              {project.installationApproved && (
+                <div className="flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Installation Complete
+                </div>
+              )}
+              <button
+                onClick={() => handleViewCustomerDetails(project.customerId)}
+                className="p-1 text-gray-400 hover:text-blue-600 rounded"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+              <div>
+                <p><span className="font-medium">Customer:</span> {project.customerName}</p>
+                <p><span className="font-medium">Ref:</span> {project.customerRefNumber}</p>
+                <p><span className="font-medium">Agent:</span> {agent?.name}</p>
+              </div>
+              <div>
+                <p><span className="font-medium">Location:</span> {project.location}</p>
+                <p><span className="font-medium">Value:</span> ₹{project.value.toLocaleString()}</p>
+                <p><span className="font-medium">Type:</span> {project.type}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Equipment to Install */}
+        {assignedEquipment.length > 0 && (
+          <div className="bg-blue-50 rounded-lg p-4 mb-4">
+            <h5 className="font-medium text-blue-900 mb-2">Equipment to Install:</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {assignedEquipment.map(item => (
+                <div key={item.id} className="flex items-center justify-between bg-white border border-gray-200 rounded px-3 py-2">
+                  <div>
+                    <span className="text-sm font-mono">{item.serialNumber}</span>
+                    <p className="text-xs text-gray-500">{item.model}</p>
+                  </div>
+                  <span className={`w-2 h-2 rounded-full ${
+                    item.status === INVENTORY_STATUS.INSTALLED ? 'bg-green-500' :
+                    item.status === INVENTORY_STATUS.ASSIGNED ? 'bg-blue-500' : 'bg-gray-400'
+                  }`}></span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Mark Complete Button */}
+        {showMarkComplete && !project.installationApproved && (
+          <div className="flex items-center justify-between">
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+              project.status === PROJECT_STATUS.COMPLETED
+                ? 'bg-green-100 text-green-800'
+                : project.status === PROJECT_STATUS.IN_PROGRESS
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {project.status.replace('_', ' ')}
+            </span>
+            
+            <button
+              onClick={() => handleMarkInstallationComplete(project.id)}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Mark Installation Complete
+            </button>
+          </div>
+        )}
+        
+        {project.installationApproved && (
+          <div className="flex justify-end">
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+              project.status === PROJECT_STATUS.COMPLETED
+                ? 'bg-green-100 text-green-800'
+                : project.status === PROJECT_STATUS.IN_PROGRESS
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {project.status.replace('_', ' ')}
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const StatCard = ({ title, value, icon: Icon, color }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between">
@@ -218,25 +372,25 @@ const InstallerDashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Active Tasks"
-          value={myTasks.filter(t => t.status !== TASK_STATUS.COMPLETED).length}
+          value={myProjects.filter(p => !p.installationApproved).length}
           icon={Wrench}
           color="bg-blue-500"
         />
         <StatCard
           title="Completed Today"
-          value={myTasks.filter(t => t.status === TASK_STATUS.COMPLETED).length}
+          value={myProjects.filter(p => p.installationApproved).length}
           icon={CheckCircle}
           color="bg-green-500"
         />
         <StatCard
           title="Pending Tasks"
-          value={myTasks.filter(t => t.status === TASK_STATUS.PENDING).length}
+          value={myProjects.filter(p => p.status === PROJECT_STATUS.APPROVED && !p.installationApproved).length}
           icon={Clock}
           color="bg-orange-500"
         />
         <StatCard
           title="Total Tasks"
-          value={myTasks.length}
+          value={myProjects.length}
           icon={FileText}
           color="bg-purple-500"
         />
@@ -259,12 +413,12 @@ const InstallerDashboard = () => {
             <button
               onClick={() => setActiveTab('tasks')}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                activeTab === 'tasks'
+                activeTab === 'projects'
                   ? 'bg-blue-100 text-blue-700'
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              My Tasks
+              My Projects
             </button>
             <button
               onClick={() => setActiveTab('scanner')}
@@ -383,104 +537,13 @@ const InstallerDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'tasks' && (
+          {activeTab === 'projects' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">My Installation Tasks</h3>
+              <h3 className="text-lg font-semibold text-gray-900">My Projects</h3>
               <div className="grid gap-4">
                 {myTasks.map((task) => (
-                  <div key={task.id} className="border border-gray-200 rounded-lg p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h4 className="text-lg font-medium text-gray-900">{task.title}</h4>
-                        <p className="text-gray-600 mt-1">{task.description}</p>
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Calendar className="w-4 h-4 mr-1" />
-                            Due: {task.dueDate}
-                          </span>
-                          {task.serialNumber && (
-                            <span className="flex items-center">
-                              <Scan className="w-4 h-4 mr-1" />
-                              Serial: {task.serialNumber}
-                            </span>
-                          )}
-                          <span className="capitalize">{task.type}</span>
-                        </div>
-                        {task.notes && (
-                          <p className="text-sm text-gray-600 mt-2 bg-gray-50 p-2 rounded">
-                            Notes: {task.notes}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          task.status === TASK_STATUS.COMPLETED
-                            ? 'bg-green-100 text-green-800'
-                            : task.status === TASK_STATUS.IN_PROGRESS
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {task.status.replace('_', ' ')}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      {task.status === TASK_STATUS.PENDING && (
-                        <button
-                          onClick={() => {
-                            dispatch({
-                              type: 'UPDATE_TASK_STATUS',
-                              payload: { taskId: task.id, status: TASK_STATUS.IN_PROGRESS }
-                            });
-                            showToast('Task started!');
-                          }}
-                          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                        >
-                          <Clock className="w-4 h-4 mr-2" />
-                          Start Task
-                        </button>
-                      )}
-                      
-                      {task.status === TASK_STATUS.IN_PROGRESS && (
-                        <button
-                          onClick={() => setSelectedTask(task)}
-                          onClick={() => {
-                            if (!otpVerified) {
-                              showToast('Please verify customer OTP first', 'error');
-                              setShowOtpModal(true);
-                              return;
-                            }
-                            setSelectedTask(task);
-                          }}
-                          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Complete Task
-                        </button>
-                      )}
-
-                      <button className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
-                        <label className="flex items-center cursor-pointer">
-                          <Camera className="w-4 h-4 mr-2" />
-                          Add Photos
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            className="hidden"
-                            onChange={(e) => {
-                              const files = Array.from(e.target.files);
-                              if (files.length > 0) {
-                                setCompletionPhotos(prev => [...prev, ...files.map(f => f.name)]);
-                                showToast(`${files.length} photo(s) added to task`);
-                              }
-                            }}
-                          />
-                        </label>
-                      </button>
-                    </div>
-                  </div>
+                {myProjects.map(project => (
+                  <ProjectCard key={project.id} project={project} showMarkComplete={true} />
                 ))}
               </div>
             </div>
@@ -567,6 +630,55 @@ const InstallerDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Customer Details Modal */}
+      {showCustomerDetails && selectedCustomer && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">Customer Details</h3>
+                <button
+                  onClick={() => setShowCustomerDetails(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-3">Basic Information</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Name:</span>
+                        <span className="font-medium">{selectedCustomer.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Email:</span>
+                        <span className="font-medium">{selectedCustomer.email}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Phone:</span>
+                        <span className="font-medium">{selectedCustomer.phone}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Reference:</span>
+                        <span className="font-medium">{selectedCustomer.customerRefNumber}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Location:</span>
+                        <span className="font-medium">{selectedCustomer.location}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Task Completion Modal */}
       {selectedTask && (

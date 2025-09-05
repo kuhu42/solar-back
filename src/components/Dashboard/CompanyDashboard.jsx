@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
-import { USER_STATUS, PROJECT_STATUS, INVENTORY_STATUS } from '../../types/index.js';
+import { USER_STATUS, PROJECT_STATUS, INVENTORY_STATUS, COMPLAINT_STATUS } from '../../types/index.js';
 import InventoryManager from '../Common/InventoryManager.jsx';
 import PerformanceChart from '../Common/PerformanceChart.jsx';
 import ProjectPipeline from '../Common/ProjectPipeline.jsx';

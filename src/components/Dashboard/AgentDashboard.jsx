@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 
 const AgentDashboard = () => {
-  const { currentUser, projects, tasks, attendance, dispatch, showToast } = useApp();
   const { currentUser, projects, tasks, attendance, complaints, users, dispatch, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
   const [checkingIn, setCheckingIn] = useState(false);

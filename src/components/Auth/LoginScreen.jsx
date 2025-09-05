@@ -1156,34 +1156,89 @@ const handleSignup = async (e) => {
     showToast(`${file.name} uploaded successfully!`);
   };
 
-  const handleCustomerSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
+  // const handleCustomerSubmit = async (e) => {
+  //   e.preventDefault();
+  //   setLoading(true);
 
-    try {
-      const user = await authService.getCurrentUser();
-      if (!user) {
-        showToast('Please sign up first', 'error');
-        return;
-      }
+  //   try {
+  //     const user = await authService.getCurrentUser();
+  //     if (!user) {
+  //       showToast('Please sign up first', 'error');
+  //       return;
+  //     }
 
-      const profileData = {
-        role: 'customer',
-        status: 'active',
-        location: customerForm.address
-      };
+  //     const profileData = {
+  //       role: 'customer',
+  //       status: 'active',
+  //       location: customerForm.address
+  //     };
 
-      const updatedProfile = await authService.updateUserProfile(user.id, profileData);
-      setCurrentUser(updatedProfile);
+  //     const updatedProfile = await authService.updateUserProfile(user.id, profileData);
+  //     setCurrentUser(updatedProfile);
       
-      showToast('Customer registration completed! Welcome to GreenSolar!');
-    } catch (error) {
-      console.error('Customer registration error:', error);
-      showToast(error.message || 'Registration failed', 'error');
-    } finally {
-      setLoading(false);
+  //     showToast('Customer registration completed! Welcome to GreenSolar!');
+  //   } catch (error) {
+  //     console.error('Customer registration error:', error);
+  //     showToast(error.message || 'Registration failed', 'error');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  const handleCustomerSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+
+  try {
+    // ✅ CREATE AUTH ACCOUNT FIRST (like professional registration)
+    const userData = {
+      name: customerForm.name,
+      phone: customerForm.phone,
+      role: 'customer',
+      status: 'active', // Customers are active immediately
+      location: customerForm.address,
+      customer_data: {
+        serviceNumber: customerForm.serviceNumber,
+        coordinates: customerForm.coordinates,
+        moduleType: customerForm.moduleType,
+        kwCapacity: customerForm.kwCapacity,
+        houseType: customerForm.houseType,
+        floors: customerForm.floors,
+        remarks: customerForm.remarks
+      }
+    };
+
+    // ✅ Create auth account with customer data
+    const result = await authService.signUp(
+      customerForm.email, 
+      'temp123456', // Temporary password - they should reset it
+      userData
+    );
+    
+    if (result.user) {
+      console.log('✅ Customer account created:', result);
+      
+      // ✅ Automatically sign in the new customer
+      const signInResult = await authService.signIn(customerForm.email, 'temp123456');
+      
+      if (signInResult.user) {
+        // Get their full profile
+        const profile = await authService.getUserProfileById(signInResult.user.id);
+        if (profile) {
+          setCurrentUser(profile);
+          showToast('Welcome to GreenSolar! Please change your password in settings.');
+        }
+      }
     }
-  };
+    
+  } catch (error) {
+    console.error('Customer registration error:', error);
+    showToast(error.message || 'Registration failed', 'error');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
 //  const handleProfessionalSubmit = async (e) => {
 //   e.preventDefault();

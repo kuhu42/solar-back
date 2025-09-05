@@ -30,6 +30,17 @@ export const dbService = {
     return data || [];
   },
 
+   async trackEvent(eventType, eventData = {}) {
+    try {
+      // For now, just log it - you can implement actual tracking later
+      console.log('📊 Event tracked:', eventType, eventData);
+      return { success: true };
+    } catch (error) {
+      console.error('Error tracking event:', error);
+      return { success: false };
+    }
+  },
+
   // ✅ Create user profile (called during signup)
   // async createUserProfile(userData) {
   //   const { data, error } = await supabase

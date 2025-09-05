@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext.jsx';
+import { dbService } from '../../lib/supabase.js';
 import { USER_STATUS, PROJECT_STATUS, INVENTORY_STATUS } from '../../types/index.js';
 import InventoryManager from '../Common/InventoryManager.jsx';
 import PerformanceChart from '../Common/PerformanceChart.jsx';
@@ -70,16 +71,62 @@ const CompanyDashboard = () => {
   //   });
   //   showToast('User rejected');
   // };
-  const handleApproveUser = async (userId, role) => {
+//   const handleApproveUser = async (userId, role) => {
+//   try {
+//     // ✅ UPDATE DATABASE DIRECTLY
+//     const updatedUser = await dbService.updateUserProfile(userId, {
+//       status: 'active',
+//       role: role,
+//       approved_at: new Date().toISOString()
+//     });
+
+//     // Update local state to reflect changes immediately
+//     dispatch({
+//       type: 'UPDATE_USER_STATUS',
+//       payload: { userId, status: 'active', role }
+//     });
+
+//     showToast('User approved successfully!');
+//   } catch (error) {
+//     console.error('Error approving user:', error);
+//     showToast('Error approving user', 'error');
+//   }
+// };
+
+// const handleRejectUser = async (userId) => {
+//   try {
+//     // ✅ UPDATE DATABASE DIRECTLY
+//     const updatedUser = await dbService.updateUserProfile(userId, {
+//       status: 'rejected',
+//       rejected_at: new Date().toISOString()
+//     });
+
+//     // Update local state
+//     dispatch({
+//       type: 'UPDATE_USER_STATUS',
+//       payload: { userId, status: 'rejected' }
+//     });
+
+//     showToast('User rejected');
+//   } catch (error) {
+//     console.error('Error rejecting user:', error);
+//     showToast('Error rejecting user', 'error');
+//   }
+// };
+const handleApproveUser = async (userId, role) => {
   try {
-    // ✅ UPDATE DATABASE DIRECTLY
+    console.log('🔄 Approving user:', userId, 'with role:', role);
+    
+    // ✅ Remove approved_at field that's causing PGRST204 error
     const updatedUser = await dbService.updateUserProfile(userId, {
       status: 'active',
-      role: role,
-      approved_at: new Date().toISOString()
+      role: role
+      // ✅ Removed approved_at field
     });
 
-    // Update local state to reflect changes immediately
+    console.log('✅ User approved:', updatedUser);
+
+    // Update local state immediately
     dispatch({
       type: 'UPDATE_USER_STATUS',
       payload: { userId, status: 'active', role }
@@ -88,19 +135,21 @@ const CompanyDashboard = () => {
     showToast('User approved successfully!');
   } catch (error) {
     console.error('Error approving user:', error);
-    showToast('Error approving user', 'error');
+    showToast(`Error approving user: ${error.message}`, 'error');
   }
 };
 
 const handleRejectUser = async (userId) => {
   try {
-    // ✅ UPDATE DATABASE DIRECTLY
+    console.log('🔄 Rejecting user:', userId);
+    
     const updatedUser = await dbService.updateUserProfile(userId, {
-      status: 'rejected',
-      rejected_at: new Date().toISOString()
+      status: 'rejected'
+      // ✅ Removed rejected_at field
     });
 
-    // Update local state
+    console.log('✅ User rejected:', updatedUser);
+
     dispatch({
       type: 'UPDATE_USER_STATUS',
       payload: { userId, status: 'rejected' }
@@ -109,9 +158,10 @@ const handleRejectUser = async (userId) => {
     showToast('User rejected');
   } catch (error) {
     console.error('Error rejecting user:', error);
-    showToast('Error rejecting user', 'error');
+    showToast(`Error rejecting user: ${error.message}`, 'error');
   }
 };
+
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between">

@@ -130,6 +130,12 @@ function appReducer(state, action) {
         complaints: [...state.complaints, action.payload]
       };
     
+    case 'ADD_TASK':
+      return {
+        ...state,
+        tasks: [...state.tasks, action.payload]
+      };
+    
     case 'ADD_USER':
       return {
         ...state,
@@ -149,7 +155,12 @@ function appReducer(state, action) {
         ...state,
         complaints: state.complaints.map(complaint =>
           complaint.id === action.payload.complaintId
-            ? { ...complaint, status: action.payload.status }
+            ? { 
+                ...complaint, 
+                status: action.payload.status,
+                assignedTo: action.payload.assignedTo || complaint.assignedTo,
+                assignedToName: action.payload.assignedToName || complaint.assignedToName
+              }
             : complaint
         )
       };

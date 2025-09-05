@@ -431,6 +431,74 @@ const CompanyDashboard = () => {
             <div className="space-y-6">
               <h3 className="text-lg font-semibold text-gray-900">Project Management</h3>
               
+              {/* New Complaints Section */}
+              {complaints.filter(c => c.status === COMPLAINT_STATUS.OPEN && !c.assignedTo).length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+                  <h4 className="font-medium text-red-900 mb-4">
+                    New Complaints Requiring Assignment ({complaints.filter(c => c.status === COMPLAINT_STATUS.OPEN && !c.assignedTo).length})
+                  </h4>
+                  <div className="space-y-4">
+                    {complaints.filter(c => c.status === COMPLAINT_STATUS.OPEN && !c.assignedTo).map(complaint => (
+                      <div key={complaint.id} className="bg-white border border-red-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h5 className="font-medium text-gray-900">{complaint.title}</h5>
+                            <p className="text-sm text-gray-600 mt-1">{complaint.description}</p>
+                            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                              <span>Customer: {complaint.customerName}</span>
+                              <span>Ref: {complaint.customerRefNumber}</span>
+                              <span>Priority: {complaint.priority}</span>
+                              {complaint.serialNumber && <span>Serial: {complaint.serialNumber}</span>}
+                            </div>
+                          </div>
+                          <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
+                            New Complaint
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center space-x-3">
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                // Assign agent to complaint and convert to project
+                                const agent = users.find(u => u.id === e.target.value);
+                                dispatch({
+                                  type: 'UPDATE_COMPLAINT_STATUS',
+                                  payload: { 
+                                    complaintId: complaint.id, 
+                                    status: COMPLAINT_STATUS.IN_PROGRESS,
+                                    assignedTo: agent.id,
+                                    assignedToName: agent.name
+                                  }
+                                });
+                                showToast(`Complaint assigned to ${agent.name}`);
+                              }
+                            }}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          >
+                            <option value="">Assign Agent</option>
+                            {users.filter(u => u.role === 'agent' && u.status === 'active').map(agent => (
+                              <option key={agent.id} value={agent.id}>{agent.name}</option>
+                            ))}
+                          </select>
+                          
+                          <button
+                            onClick={() => {
+                              // Show equipment assignment modal
+                              showToast('Equipment assignment feature - integrate with inventory');
+                            }}
+                            className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                          >
+                            <Package className="w-4 h-4 mr-2" />
+                            Assign Equipment
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-6">
                 {projects.map(project => (
                   <div key={project.id} className="border border-gray-200 rounded-lg p-6">
@@ -514,6 +582,30 @@ const CompanyDashboard = () => {
                         <option value="installation_complete">Installation Complete</option>
                         <option value="commissioned">Commissioned</option>
                         <option value="active">Active</option>
+                      </select>
+                    </div>
+
+                    {/* Admin Project Status Control */}
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Project Status (Admin):
+                      </label>
+                      <select
+                        value={project.status}
+                        onChange={(e) => {
+                          dispatch({
+                            type: 'UPDATE_PROJECT_STATUS',
+                            payload: { projectId: project.id, status: e.target.value }
+                          });
+                          showToast('Project status updated');
+                        }}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
                       </select>
                     </div>
                   </div>

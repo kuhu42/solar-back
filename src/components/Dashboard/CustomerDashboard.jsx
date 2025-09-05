@@ -329,6 +329,21 @@ const CustomerDashboard = () => {
               {/* Recent Activity */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                
+                {/* Customer OTP Display */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-blue-900">Your Service OTP</h4>
+                      <p className="text-sm text-blue-700">Share this OTP with the technician when they arrive</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-blue-600 font-mono">123456</div>
+                      <p className="text-xs text-blue-600">Valid for today's service</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-3">
                   <div className="flex items-center p-3 bg-green-50 border border-green-200 rounded-lg">
                     <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
@@ -352,6 +367,50 @@ const CustomerDashboard = () => {
           {activeTab === 'projects' && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">My Projects</h3>
+              
+              {/* Show any active complaints/service requests */}
+              {myComplaints.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="font-medium text-gray-900 mb-4">Active Service Requests</h4>
+                  {myComplaints.map((complaint) => (
+                    <div key={complaint.id} className="border border-orange-200 bg-orange-50 rounded-lg p-4 mb-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h5 className="font-medium text-gray-900">{complaint.title}</h5>
+                          <p className="text-sm text-gray-600 mt-1">{complaint.description}</p>
+                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                            <span>Priority: {complaint.priority}</span>
+                            <span>Created: {complaint.createdAt}</span>
+                            {complaint.serialNumber && <span>Equipment: {complaint.serialNumber}</span>}
+                            {complaint.assignedToName && <span>Assigned to: {complaint.assignedToName}</span>}
+                          </div>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          complaint.status === COMPLAINT_STATUS.RESOLVED
+                            ? 'bg-green-100 text-green-800'
+                            : complaint.status === COMPLAINT_STATUS.IN_PROGRESS
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {complaint.status.replace('_', ' ')}
+                        </span>
+                      </div>
+                      
+                      {complaint.status === COMPLAINT_STATUS.IN_PROGRESS && (
+                        <div className="bg-blue-50 border border-blue-200 rounded p-3 mt-3">
+                          <p className="text-sm text-blue-800 font-medium">
+                            Service OTP: <span className="font-mono text-lg">123456</span>
+                          </p>
+                          <p className="text-xs text-blue-600 mt-1">
+                            Share this OTP with the technician when they arrive for service
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="grid gap-6">
                 {myProjects.map((project) => (
                   <div key={project.id} className="border border-gray-200 rounded-lg p-6">

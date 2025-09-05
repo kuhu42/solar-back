@@ -454,10 +454,22 @@ const TechnicianDashboard = () => {
                         </button>
                       )}
 
-                      <button className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
+                      <label className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm cursor-pointer">
                         <Camera className="w-4 h-4 mr-2" />
                         Add Photos
-                      </button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files);
+                            if (files.length > 0) {
+                              showToast(`${files.length} photo(s) uploaded for complaint ${complaint.id}`);
+                            }
+                          }}
+                        />
+                      </label>
 
                       <button className="flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm">
                         <Phone className="w-4 h-4 mr-2" />

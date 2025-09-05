@@ -15,12 +15,18 @@ import {
 } from 'lucide-react';
 
 const InstallerDashboard = () => {
-  const { currentUser, tasks, attendance, inventory, dispatch, showToast } = useApp();
+  const { currentUser, tasks, attendance, inventory, projects, dispatch, showToast } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
   const [checkingIn, setCheckingIn] = useState(false);
   const [scannerInput, setScannerInput] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [completionNotes, setCompletionNotes] = useState('');
+  const [customerOtp, setCustomerOtp] = useState('');
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [completionPhotos, setCompletionPhotos] = useState([]);
+  const [usedEquipment, setUsedEquipment] = useState([]);
+  const [additionalSerials, setAdditionalSerials] = useState('');
 
   const myTasks = tasks.filter(t => t.assignedTo === currentUser?.id);
   const todayAttendance = attendance.find(a => 
@@ -100,7 +106,39 @@ const InstallerDashboard = () => {
     setScannerInput('');
   };
 
+  const handleVerifyOtp = () => {
+    if (customerOtp === '123456') {
+      setOtpVerified(true);
+      setShowOtpModal(false);
+      showToast('Customer OTP verified! You can now start working.');
+      setCustomerOtp('');
+    } else {
+      showToast('Invalid OTP. Please ask customer for correct OTP.', 'error');
+    }
+  };
+
   const handleCompleteTask = (taskId) => {
+    if (!otpVerified) {
+      showToast('Please verify customer OTP before completing task', 'error');
+      setShowOtpModal(true);
+      return;
+    }
+
+    // Update inventory items as used
+    usedEquipment.forEach(serialNumber => {
+      dispatch({
+        type: 'UPDATE_INVENTORY_STATUS',
+        payload: {
+          serialNumber,
+          status: INVENTORY_STATUS.INSTALLED,
+          updates: {
+            installDate: new Date().toISOString().split('T')[0],
+            installedBy: currentUser.id
+          }
+        }
+      });
+    });
+
     dispatch({
       type: 'UPDATE_TASK_STATUS',
       payload: {
@@ -108,7 +146,11 @@ const InstallerDashboard = () => {
         status: TASK_STATUS.COMPLETED,
         updates: {
           notes: completionNotes,
-          photos: ['installation_photo_1.jpg', 'installation_photo_2.jpg'] // Mock photos
+          photos: completionPhotos,
+          usedEquipment,
+          additionalSerials: additionalSerials.split(',').map(s => s.trim()).filter(s => s),
+          completedBy: currentUser.id,
+          completedAt: new Date().toISOString()
         }
       }
     });
@@ -116,6 +158,9 @@ const InstallerDashboard = () => {
     showToast('Task completed successfully!');
     setSelectedTask(null);
     setCompletionNotes('');
+    setCompletionPhotos([]);
+    setUsedEquipment([]);
+    setAdditionalSerials('');
   };
 
   const StatCard = ({ title, value, icon: Icon, color }) => (
@@ -400,6 +445,14 @@ const InstallerDashboard = () => {
                       {task.status === TASK_STATUS.IN_PROGRESS && (
                         <button
                           onClick={() => setSelectedTask(task)}
+                          onClick={() => {
+                            if (!otpVerified) {
+                              showToast('Please verify customer OTP first', 'error');
+                              setShowOtpModal(true);
+                              return;
+                            }
+                            setSelectedTask(task);
+                          }}
                           className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                         >
                           <CheckCircle className="w-4 h-4 mr-2" />
@@ -408,8 +461,23 @@ const InstallerDashboard = () => {
                       )}
 
                       <button className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">
-                        <Camera className="w-4 h-4 mr-2" />
-                        Add Photos
+                        <label className="flex items-center cursor-pointer">
+                          <Camera className="w-4 h-4 mr-2" />
+                          Add Photos
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files);
+                              if (files.length > 0) {
+                                setCompletionPhotos(prev => [...prev, ...files.map(f => f.name)]);
+                                showToast(`${files.length} photo(s) added to task`);
+                              }
+                            }}
+                          />
+                        </label>
                       </button>
                     </div>
                   </div>
@@ -503,14 +571,87 @@ const InstallerDashboard = () => {
       {/* Task Completion Modal */}
       {selectedTask && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Complete Task</h3>
             <div className="space-y-4">
               <div>
                 <h4 className="font-medium text-gray-900">{selectedTask.title}</h4>
                 <p className="text-sm text-gray-600">{selectedTask.description}</p>
+                <p className="text-sm text-gray-500">Customer Ref: {selectedTask.customerRefNumber}</p>
               </div>
               
+              {/* Equipment Usage */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Mark Equipment as Used
+                </label>
+                <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg">
+                  {inventory.filter(item => item.status === INVENTORY_STATUS.ASSIGNED).map(item => (
+                    <label key={item.id} className="flex items-center p-2 hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={usedEquipment.includes(item.serialNumber)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setUsedEquipment(prev => [...prev, item.serialNumber]);
+                          } else {
+                            setUsedEquipment(prev => prev.filter(s => s !== item.serialNumber));
+                          }
+                        }}
+                        className="mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{item.serialNumber}</div>
+                        <div className="text-sm text-gray-600">{item.model}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Additional Equipment */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Additional Equipment Serial Numbers (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={additionalSerials}
+                  onChange={(e) => setAdditionalSerials(e.target.value)}
+                  placeholder="e.g., SP123, INV456, BAT789"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Photo Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Completion Photos
+                </label>
+                <label className="flex items-center justify-center w-full px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 border-2 border-dashed border-gray-300 cursor-pointer">
+                  <Camera className="w-5 h-5 mr-2" />
+                  Upload Photos ({completionPhotos.length} selected)
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files);
+                      if (files.length > 0) {
+                        setCompletionPhotos(prev => [...prev, ...files.map(f => f.name)]);
+                        showToast(`${files.length} photo(s) added`);
+                      }
+                    }}
+                  />
+                </label>
+                {completionPhotos.length > 0 && (
+                  <div className="mt-2 text-sm text-gray-600">
+                    Photos: {completionPhotos.join(', ')}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Completion Notes
@@ -532,7 +673,8 @@ const InstallerDashboard = () => {
                     <ul className="mt-1 list-disc list-inside space-y-1">
                       <li>Take photos of completed work</li>
                       <li>Verify all equipment is properly installed</li>
-                      <li>Update serial number status</li>
+                      <li>Mark used equipment and add any additional serials</li>
+                      <li>Customer OTP must be verified</li>
                     </ul>
                   </div>
                 </div>
@@ -547,6 +689,55 @@ const InstallerDashboard = () => {
                 </button>
                 <button
                   onClick={() => setSelectedTask(null)}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OTP Verification Modal */}
+      {showOtpModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Customer OTP Verification Required</h3>
+            <div className="space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600 mr-3" />
+                  <p className="text-sm text-red-800">
+                    You must verify the customer's OTP before starting any work. Ask the customer for their 6-digit OTP.
+                  </p>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Enter Customer OTP
+                </label>
+                <input
+                  type="text"
+                  value={customerOtp}
+                  onChange={(e) => setCustomerOtp(e.target.value)}
+                  placeholder="Enter 6-digit OTP"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  maxLength="6"
+                />
+                <p className="text-xs text-gray-500 mt-1">Demo OTP: 123456</p>
+              </div>
+              
+              <div className="flex items-center space-x-3 pt-4">
+                <button
+                  onClick={handleVerifyOtp}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700"
+                >
+                  Verify OTP
+                </button>
+                <button
+                  onClick={() => setShowOtpModal(false)}
                   className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
                 >
                   Cancel

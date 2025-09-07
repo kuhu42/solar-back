@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext.jsx';
+import { useApp } from '../../hooks/useApp.js'
 import { dbService } from '../../lib/supabase.js';
 import { USER_STATUS, PROJECT_STATUS, INVENTORY_STATUS } from '../../types/index.js';
 import InventoryManager from '../Common/InventoryManager.jsx';
@@ -20,7 +21,9 @@ import {
   UserCheck,
   UserX,
   Building,
-  BarChart3
+  BarChart3,
+  Plus,
+  X
 } from 'lucide-react';
 
 const CompanyDashboard = () => {
@@ -42,12 +45,27 @@ const CompanyDashboard = () => {
   
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedStaff, setSelectedStaff] = useState(null);
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [createProjectForm, setCreateProjectForm] = useState({
+    title: '',
+    value: '',
+    description: '',
+    location: '',
+    customerId: '',
+    agentId: '',
+    selectedEquipment: [],
+    type: 'solar'
+  });
 
   const pendingUsers = users.filter(u => u.status === USER_STATUS.PENDING);
   const activeProjects = projects.filter(p => p.status === PROJECT_STATUS.IN_PROGRESS);
   const completedProjects = projects.filter(p => p.status === PROJECT_STATUS.COMPLETED);
   const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((sum, i) => sum + i.amount, 0);
   const activeStaff = users.filter(u => u.status === USER_STATUS.ACTIVE && u.role !== 'customer');
+  const activeCustomers = users.filter(u => u.status === USER_STATUS.ACTIVE && u.role === 'customer');
+  const activeAgents = users.filter(u => u.status === USER_STATUS.ACTIVE && u.role === 'agent');
+  const availableEquipment = inventory.filter(i => i.status === INVENTORY_STATUS.IN_STOCK);
+  
   const inventoryStats = {
     total: inventory.length,
     inStock: inventory.filter(i => i.status === INVENTORY_STATUS.IN_STOCK).length,
@@ -56,111 +74,272 @@ const CompanyDashboard = () => {
     totalValue: inventory.reduce((sum, i) => sum + (i.cost || 0), 0)
   };
 
-  // const handleApproveUser = (userId, role) => {
-  //   dispatch({
-  //     type: 'UPDATE_USER_STATUS',
-  //     payload: { userId, status: USER_STATUS.ACTIVE, role }
-  //   });
-  //   showToast('User approved successfully!');
-  // };
+  const handleApproveUser = async (userId, role) => {
+    try {
+      console.log('🔄 Approving user:', userId, 'with role:', role);
+      
+      const updatedUser = await dbService.updateUserProfile(userId, {
+        status: 'active',
+        role: role
+      });
 
-  // const handleRejectUser = (userId) => {
-  //   dispatch({
-  //     type: 'UPDATE_USER_STATUS',
-  //     payload: { userId, status: USER_STATUS.REJECTED }
-  //   });
-  //   showToast('User rejected');
-  // };
-//   const handleApproveUser = async (userId, role) => {
-//   try {
-//     // ✅ UPDATE DATABASE DIRECTLY
-//     const updatedUser = await dbService.updateUserProfile(userId, {
-//       status: 'active',
-//       role: role,
-//       approved_at: new Date().toISOString()
-//     });
+      console.log('✅ User approved:', updatedUser);
 
-//     // Update local state to reflect changes immediately
-//     dispatch({
-//       type: 'UPDATE_USER_STATUS',
-//       payload: { userId, status: 'active', role }
-//     });
+      dispatch({
+        type: 'UPDATE_USER_STATUS',
+        payload: { userId, status: 'active', role }
+      });
 
-//     showToast('User approved successfully!');
-//   } catch (error) {
-//     console.error('Error approving user:', error);
-//     showToast('Error approving user', 'error');
-//   }
-// };
+      showToast('User approved successfully!');
+    } catch (error) {
+      console.error('Error approving user:', error);
+      showToast(`Error approving user: ${error.message}`, 'error');
+    }
+  };
 
-// const handleRejectUser = async (userId) => {
-//   try {
-//     // ✅ UPDATE DATABASE DIRECTLY
-//     const updatedUser = await dbService.updateUserProfile(userId, {
-//       status: 'rejected',
-//       rejected_at: new Date().toISOString()
-//     });
+  const handleRejectUser = async (userId) => {
+    try {
+      console.log('🔄 Rejecting user:', userId);
+      
+      const updatedUser = await dbService.updateUserProfile(userId, {
+        status: 'rejected'
+      });
 
-//     // Update local state
-//     dispatch({
-//       type: 'UPDATE_USER_STATUS',
-//       payload: { userId, status: 'rejected' }
-//     });
+      console.log('✅ User rejected:', updatedUser);
 
-//     showToast('User rejected');
-//   } catch (error) {
-//     console.error('Error rejecting user:', error);
-//     showToast('Error rejecting user', 'error');
-//   }
-// };
-const handleApproveUser = async (userId, role) => {
-  try {
-    console.log('🔄 Approving user:', userId, 'with role:', role);
+      dispatch({
+        type: 'UPDATE_USER_STATUS',
+        payload: { userId, status: 'rejected' }
+      });
+
+      showToast('User rejected');
+    } catch (error) {
+      console.error('Error rejecting user:', error);
+      showToast(`Error rejecting user: ${error.message}`, 'error');
+    }
+  };
+
+  // const handleCreateProject = async (e) => {
+  //   e.preventDefault();
     
-    // ✅ Remove approved_at field that's causing PGRST204 error
-    const updatedUser = await dbService.updateUserProfile(userId, {
-      status: 'active',
-      role: role
-      // ✅ Removed approved_at field
+  //   // Validation
+  //   if (!createProjectForm.title || !createProjectForm.value || !createProjectForm.description || 
+  //       !createProjectForm.location || !createProjectForm.customerId || !createProjectForm.agentId) {
+  //     showToast('Please fill in all required fields', 'error');
+  //     return;
+  //   }
+
+  //   if (createProjectForm.selectedEquipment.length === 0) {
+  //     showToast('Please select at least one piece of equipment', 'error');
+  //     return;
+  //   }
+
+  //   try {
+  //     const customer = users.find(u => u.id === createProjectForm.customerId);
+  //     const agent = users.find(u => u.id === createProjectForm.agentId);
+
+  //     const projectData = {
+  //       title: createProjectForm.title,
+  //       value: parseFloat(createProjectForm.value),
+  //       description: createProjectForm.description,
+  //       location: createProjectForm.location,
+  //       customerId: createProjectForm.customerId,
+  //       customerName: customer.name,
+  //       customerRefNumber: customer.customerRefNumber || `REF${Date.now()}`,
+  //       agentId: createProjectForm.agentId,
+  //       agentName: agent.name,
+  //       serialNumbers: createProjectForm.selectedEquipment,
+  //       status: PROJECT_STATUS.PENDING,
+  //       pipelineStage: 'lead_generated',
+  //       createdAt: new Date().toISOString(),
+  //       assignedAt: new Date().toISOString()
+  //     };
+
+  //     if (isLiveMode) {
+  //       // Create project in database
+  //       const newProject = await dbService.createProject(projectData);
+        
+  //       // Update equipment status to assigned
+  //       for (const serialNumber of createProjectForm.selectedEquipment) {
+  //         const item = inventory.find(i => i.serialNumber === serialNumber);
+  //         if (item) {
+  //           await dbService.updateInventoryItem(item.id, {
+  //             status: INVENTORY_STATUS.ASSIGNED,
+  //             projectId: newProject.id,
+  //             assignedAt: new Date().toISOString()
+  //           });
+  //         }
+  //       }
+        
+  //       showToast('Project created successfully!');
+  //     } else {
+  //       // Demo mode - update local state
+  //       const newProject = {
+  //         id: `project-${Date.now()}`,
+  //         ...projectData
+  //       };
+        
+  //       dispatch({ type: 'SET_PROJECTS', payload: [...projects, newProject] });
+        
+  //       // Update equipment status in demo mode
+  //       const updatedInventory = inventory.map(item => {
+  //         if (createProjectForm.selectedEquipment.includes(item.serialNumber)) {
+  //           return {
+  //             ...item,
+  //             status: INVENTORY_STATUS.ASSIGNED,
+  //             projectId: newProject.id,
+  //             assignedAt: new Date().toISOString()
+  //           };
+  //         }
+  //         return item;
+  //       });
+        
+  //       dispatch({ type: 'SET_INVENTORY', payload: updatedInventory });
+  //       showToast('Project created successfully!');
+  //     }
+
+  //     // Reset form and close modal
+  //     setCreateProjectForm({
+  //       title: '',
+  //       value: '',
+  //       description: '',
+  //       location: '',
+  //       customerId: '',
+  //       agentId: '',
+  //       selectedEquipment: []
+  //     });
+  //     setShowCreateProject(false);
+
+  //   } catch (error) {
+  //     console.error('Error creating project:', error);
+  //     showToast(`Error creating project: ${error.message}`, 'error');
+  //   }
+  // };
+  const handleCreateProject = async (e) => {
+  e.preventDefault();
+  
+  // Validation
+  if (!createProjectForm.title || !createProjectForm.value || !createProjectForm.description || 
+      !createProjectForm.location || !createProjectForm.customerId || !createProjectForm.agentId) {
+    showToast('Please fill in all required fields', 'error');
+    return;
+  }
+
+  if (createProjectForm.selectedEquipment.length === 0) {
+    showToast('Please select at least one piece of equipment', 'error');
+    return;
+  }
+
+  try {
+    const customer = users.find(u => u.id === createProjectForm.customerId);
+    const agent = users.find(u => u.id === createProjectForm.agentId);
+
+    // ✅ Fixed: Use snake_case column names to match your schema
+    const projectData = {
+      title: createProjectForm.title,
+      value: parseFloat(createProjectForm.value),
+      description: createProjectForm.description,
+      location: createProjectForm.location,
+      customer_id: createProjectForm.customerId,           // ✅ snake_case
+      customer_name: customer.name,                        // ✅ snake_case
+      customer_ref_number: customer.customerRefNumber || `REF${Date.now()}`, // ✅ snake_case
+      agent_id: createProjectForm.agentId,                 // ✅ snake_case (not agentId)
+      assigned_to: createProjectForm.agentId,              // ✅ This also exists in your schema
+      assigned_to_name: agent.name,                        // ✅ snake_case
+      serial_numbers: createProjectForm.selectedEquipment, // ✅ snake_case
+      status: 'pending',                                   // ✅ Use string, not PROJECT_STATUS.PENDING
+      pipeline_stage: 'lead_generated',                    // ✅ snake_case
+      // type: 'solar',                                 // ✅ REQUIRED field - add this!
+      type: createProjectForm.type, 
+      created_at: new Date().toISOString()                 // ✅ snake_case
+    };
+
+    if (isLiveMode) {
+      // Create project in database
+      const newProject = await dbService.createProject(projectData);
+      
+      // Update equipment status to assigned
+      for (const serialNumber of createProjectForm.selectedEquipment) {
+        const item = inventory.find(i => i.serialNumber === serialNumber);
+        if (item) {
+          await dbService.updateInventoryItem(item.id, {
+            status: INVENTORY_STATUS.ASSIGNED,
+            project_id: newProject.id,  // ✅ Use snake_case if your inventory table uses it
+            assigned_at: new Date().toISOString()
+          });
+        }
+      }
+      
+      showToast('Project created successfully!');
+    } else {
+      // Demo mode - update local state (keep existing logic)
+      const newProject = {
+        id: `project-${Date.now()}`,
+        // Convert back to camelCase for frontend consistency
+        customerId: projectData.customer_id,
+        customerName: projectData.customer_name,
+        customerRefNumber: projectData.customer_ref_number,
+        agentId: projectData.agent_id,
+        agentName: projectData.assigned_to_name,
+        serialNumbers: projectData.serial_numbers,
+        pipelineStage: projectData.pipeline_stage,
+        createdAt: projectData.created_at,
+        // Keep other fields as-is
+        title: projectData.title,
+        value: projectData.value,
+        description: projectData.description,
+        location: projectData.location,
+        status: projectData.status,
+        type: projectData.type
+      };
+      
+      dispatch({ type: 'SET_PROJECTS', payload: [...projects, newProject] });
+      
+      // Update equipment status in demo mode
+      const updatedInventory = inventory.map(item => {
+        if (createProjectForm.selectedEquipment.includes(item.serialNumber)) {
+          return {
+            ...item,
+            status: INVENTORY_STATUS.ASSIGNED,
+            projectId: newProject.id,
+            assignedAt: new Date().toISOString()
+          };
+        }
+        return item;
+      });
+      
+      dispatch({ type: 'SET_INVENTORY', payload: updatedInventory });
+      showToast('Project created successfully!');
+    }
+
+    // Reset form and close modal
+    setCreateProjectForm({
+      title: '',
+      value: '',
+      description: '',
+      location: '',
+      customerId: '',
+      agentId: '',
+      selectedEquipment: [],
+      type: 'solar'
     });
+    setShowCreateProject(false);
 
-    console.log('✅ User approved:', updatedUser);
-
-    // Update local state immediately
-    dispatch({
-      type: 'UPDATE_USER_STATUS',
-      payload: { userId, status: 'active', role }
-    });
-
-    showToast('User approved successfully!');
   } catch (error) {
-    console.error('Error approving user:', error);
-    showToast(`Error approving user: ${error.message}`, 'error');
+    console.error('Error creating project:', error);
+    showToast(`Error creating project: ${error.message}`, 'error');
   }
 };
 
-const handleRejectUser = async (userId) => {
-  try {
-    console.log('🔄 Rejecting user:', userId);
-    
-    const updatedUser = await dbService.updateUserProfile(userId, {
-      status: 'rejected'
-      // ✅ Removed rejected_at field
-    });
 
-    console.log('✅ User rejected:', updatedUser);
-
-    dispatch({
-      type: 'UPDATE_USER_STATUS',
-      payload: { userId, status: 'rejected' }
-    });
-
-    showToast('User rejected');
-  } catch (error) {
-    console.error('Error rejecting user:', error);
-    showToast(`Error rejecting user: ${error.message}`, 'error');
-  }
-};
+  const handleEquipmentToggle = (serialNumber) => {
+    setCreateProjectForm(prev => ({
+      ...prev,
+      selectedEquipment: prev.selectedEquipment.includes(serialNumber)
+        ? prev.selectedEquipment.filter(s => s !== serialNumber)
+        : [...prev.selectedEquipment, serialNumber]
+    }));
+  };
 
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -520,7 +699,16 @@ const handleRejectUser = async (userId) => {
 
           {activeTab === 'projects' && (
             <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-gray-900">Project Management</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Project Management</h3>
+                <button
+                  onClick={() => setShowCreateProject(true)}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create New Project
+                </button>
+              </div>
               
               <div className="grid gap-6">
                 {projects.map(project => (
@@ -674,6 +862,190 @@ const handleRejectUser = async (userId) => {
           )}
         </div>
       </div>
+
+      {/* Create Project Modal */}
+      {showCreateProject && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Create New Project</h2>
+              <button
+                onClick={() => setShowCreateProject(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateProject} className="p-6 space-y-6">
+              {/* Basic Project Information */}
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Basic Project Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Project Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={createProjectForm.title}
+                      onChange={(e) => setCreateProjectForm(prev => ({ ...prev, title: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter project title"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Project Value (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      value={createProjectForm.value}
+                      onChange={(e) => setCreateProjectForm(prev => ({ ...prev, value: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter project value"
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description *
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={createProjectForm.description}
+                      onChange={(e) => setCreateProjectForm(prev => ({ ...prev, description: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter project description"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Location *
+                    </label>
+                    <input
+                      type="text"
+                      value={createProjectForm.location}
+                      onChange={(e) => setCreateProjectForm(prev => ({ ...prev, location: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter project location"
+                      required
+                    />
+                  </div>
+                  <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Project Type *
+                  </label>
+                  <select
+                    value={createProjectForm.type}
+                    onChange={(e) => setCreateProjectForm(prev => ({ ...prev, type: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="solar">Solar</option>
+                    <option value="wind">Wind</option>
+                    <option value="hybrid">Hybrid</option>
+                  </select>
+                </div>
+
+              </div>
+
+              {/* Assignment Details */}
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Assignment Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assign Customer *
+                    </label>
+                    <select
+                      value={createProjectForm.customerId}
+                      onChange={(e) => setCreateProjectForm(prev => ({ ...prev, customerId: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Select a customer</option>
+                      {activeCustomers.map(customer => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name} (Ref: {customer.customerRefNumber || 'N/A'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assign Agent *
+                    </label>
+                    <select
+                      value={createProjectForm.agentId}
+                      onChange={(e) => setCreateProjectForm(prev => ({ ...prev, agentId: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Select an agent</option>
+                      {activeAgents.map(agent => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Equipment Selection */}
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Equipment Selection * ({createProjectForm.selectedEquipment.length} selected)
+                </h3>
+                <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
+                  {availableEquipment.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4">No equipment available in stock</p>
+                  ) : (
+                    <div className="p-4 space-y-2">
+                      {availableEquipment.map(item => (
+                        <label key={item.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={createProjectForm.selectedEquipment.includes(item.serialNumber)}
+                            onChange={() => handleEquipmentToggle(item.serialNumber)}
+                            className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <Package className="w-4 h-4 text-gray-500" />
+                          <span className="flex-1 text-sm">
+                            <span className="font-mono font-medium">{item.serialNumber}</span>
+                            <span className="text-gray-500 ml-2">- {item.model} ({item.equipmentType})</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateProject(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Create Project
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

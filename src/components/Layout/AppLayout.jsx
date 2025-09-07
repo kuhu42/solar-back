@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext.jsx';
+// import { useApp } from '../../context/AppContext.jsx';
+import { useApp } from '../../hooks/useApp.js'
 import { USER_ROLES } from '../../types/index.js';
 import { 
   Menu, 

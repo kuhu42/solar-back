@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext.jsx';
+// import { useApp } from '../../context/AppContext.jsx';
+import { useApp } from '../../hooks/useApp.js'
 import { TASK_STATUS, INVENTORY_STATUS } from '../../types/index.js';
 import { 
   MapPin, 

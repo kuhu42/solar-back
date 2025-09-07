@@ -1,5 +1,6 @@
 import React from 'react';
-import { useApp } from './context/AppContext.jsx';
+//import { useApp } from './context/AppContext.jsx';
+import { useApp } from '../src/hooks/useApp.js'
 import { USER_ROLES, USER_STATUS } from './types/index.js';
 import LoginScreen from './components/Auth/LoginScreen.jsx';
 import PendingApproval from './components/Auth/PendingApproval.jsx';

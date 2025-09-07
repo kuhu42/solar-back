@@ -113,8 +113,8 @@ import React from 'react';
 import { Clock, AlertCircle, Mail, Phone } from 'lucide-react';
 import { authService } from '../../lib/auth.js';
 
-import { useApp } from '../../context/AppContext.jsx';
-
+// import { useApp } from '../../context/AppContext.jsx';
+import { useApp } from '../../hooks/useApp.js'
 import { dbService } from '../../lib/supabase.js';
 
 const PendingApproval = ({ user }) => {

@@ -2,6 +2,8 @@ import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { dbService, supabase } from '../lib/supabase.js';
 import { authService } from '../lib/auth.js';
 import { USER_STATUS } from '../types/index.js';
+import { teamGroupingService } from '../lib/teamGroupingService.js';
+
 import { 
   mockUsers, 
   mockProjects, 
@@ -44,6 +46,15 @@ function appReducer(state, action) {
     
     case 'SET_USERS':
       return { ...state, users: action.payload };
+    
+    case 'SET_TEAMS':
+      return { ...state, teams: action.payload };
+    
+    case 'SET_USER_TEAM':
+      return { ...state, userTeam: action.payload };
+    
+    case 'SET_TEAM_STATS':
+      return { ...state, teamStats: action.payload };
     
     case 'SET_PROJECTS':
       return { ...state, projects: action.payload };
@@ -364,7 +375,115 @@ authService.onAuthStateChange(async (event, session) => {
     }
   };
 
-// Replace your loadLiveData function in AppContext.jsx with this version:
+const loadTeamData = async () => {
+  if (!state.isLiveMode) return; // Only for live mode
+  
+  try {
+    console.log('Loading team data...');
+    
+    // Load all teams
+    const teams = await teamGroupingService.groupUsersByLocation();
+    dispatch({ type: 'SET_TEAMS', payload: teams });
+    
+    // Load current user's team if user exists
+    if (state.currentUser) {
+      const userTeam = await teamGroupingService.getUserTeam(state.currentUser.id);
+      dispatch({ type: 'SET_USER_TEAM', payload: userTeam });
+    }
+    
+    // Load team statistics
+    const stats = await teamGroupingService.getTeamStatistics();
+    dispatch({ type: 'SET_TEAM_STATS', payload: stats });
+    
+    console.log('Team data loaded:', { teams: teams.length, userTeam: !!userTeam });
+  } catch (error) {
+    console.error('Error loading team data:', error);
+  }
+};
+
+// Team management methods to add to your context value
+const getTeamsByRole = async (role) => {
+  if (state.isLiveMode) {
+    try {
+      return await teamGroupingService.getTeamsByRole(role);
+    } catch (error) {
+      console.error('Error getting teams by role:', error);
+      return [];
+    }
+  } else {
+    // Demo mode - group mock users by pincode + role
+    const mockTeams = groupMockUsersByLocation(role);
+    return mockTeams;
+  }
+};
+
+const getUsersInSameLocation = async (pincode, role) => {
+  if (state.isLiveMode) {
+    try {
+      return await teamGroupingService.getUsersInLocation(pincode, role);
+    } catch (error) {
+      console.error('Error getting users in location:', error);
+      return { teamName: 'Unknown Team', members: [] };
+    }
+  } else {
+    // Demo mode logic
+    return getDemoUsersInLocation(pincode, role);
+  }
+};
+
+const refreshTeamData = async () => {
+  await loadTeamData();
+};
+
+// Helper function for demo mode
+const groupMockUsersByLocation = (role) => {
+  const mockUsers = state.users.filter(user => user.role === role && user.pincode);
+  const teams = {};
+  
+  mockUsers.forEach(user => {
+    const city = teamGroupingService.getCityFromPincode(user.pincode);
+    const teamKey = `${city}_${role}`;
+    
+    if (!teams[teamKey]) {
+      teams[teamKey] = {
+        teamName: `${city} ${teamGroupingService.capitalizeRole(role)}s`,
+        location: city,
+        role: role,
+        members: [],
+        totalMembers: 0,
+        activeMembers: 0,
+        pendingMembers: 0
+      };
+    }
+    
+    teams[teamKey].members.push(user);
+    teams[teamKey].totalMembers++;
+    
+    if (user.status === 'active') teams[teamKey].activeMembers++;
+    if (user.status === 'pending') teams[teamKey].pendingMembers++;
+  });
+  
+  return Object.values(teams);
+};
+
+const getDemoUsersInLocation = (pincode, role) => {
+  const city = teamGroupingService.getCityFromPincode(pincode);
+  const regionPrefix = pincode.charAt(0);
+  
+  const members = state.users.filter(user => 
+    user.role === role && 
+    user.pincode && 
+    user.pincode.charAt(0) === regionPrefix
+  );
+  
+  return {
+    teamName: `${city} ${teamGroupingService.capitalizeRole(role)}s`,
+    location: city,
+    role: role,
+    members: members
+  };
+};
+
 
 // Replace your deactivateUser and reactivateUser functions in AppContext.jsx with these corrected versions:
 
@@ -1055,17 +1174,39 @@ const register = async (userData) => {
   if (!authService.isAvailable()) {
     throw new Error('Authentication service not available');
   }
-  
+
   try {
     dispatch({ type: 'SET_LOADING', payload: true });
     dispatch({ type: 'SET_ERROR', payload: null });
-
+    
+    // ✅ FORCE CUSTOMER STATUS - OVERRIDE ANY INCOMING STATUS
+    let finalUserData = { ...userData };
+    
+    if (userData.role === 'customer' || userData.role === USER_ROLES.CUSTOMER) {
+      finalUserData.status = 'active'; // ✅ ALWAYS ACTIVE FOR CUSTOMERS
+      console.log('Customer registration - forcing active status');
+    } else if (userData.role === 'middleman' || userData.requestedRole) {
+      finalUserData.status = 'pending'; // ❌ Require approval for professionals
+      console.log('Professional registration - requiring approval');
+    } else {
+      finalUserData.status = userData.status || 'active'; // Default active
+    }
+    
+    console.log('Final user data for registration:', finalUserData);
+    
     const result = await authService.signUp(
       userData.email,
       userData.password,
-      userData
+      finalUserData
     );
-
+    
+    // ✅ For customers, immediately refresh user list to show new active customer
+    if ((userData.role === 'customer' || userData.role === USER_ROLES.CUSTOMER) && state.isLiveMode) {
+      console.log('Refreshing user list after customer registration');
+      const updatedUsers = await dbService.getUserProfiles();
+      dispatch({ type: 'SET_USERS', payload: updatedUsers });
+    }
+    
     return result;
   } catch (error) {
     console.error('Registration error:', error);
@@ -1075,6 +1216,8 @@ const register = async (userData) => {
     dispatch({ type: 'SET_LOADING', payload: false });
   }
 };
+
+
 
 // And make sure your context value includes the register function:
 const value = {
@@ -1104,6 +1247,10 @@ const value = {
   uploadFile,
   trackEvent,
   
+   getTeamsByRole,
+  getUsersInSameLocation,
+  refreshTeamData,
+  teamGroupingService,
   // NEW PROJECT WORKFLOW METHODS
   createProject,
   assignInstallerToProject,

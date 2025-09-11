@@ -11,7 +11,8 @@ export const USER_ROLES = {
 export const USER_STATUS = {
   ACTIVE: 'active',
   PENDING: 'pending',
-  REJECTED: 'rejected'
+  REJECTED: 'rejected',
+  INACTIVE: 'inactive'
 };
 
 export const PROJECT_STATUS = {

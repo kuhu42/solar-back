@@ -6,9 +6,6 @@ export const authService = {
     return supabase !== null;
   },
 
-  // Email/password sign up
-// Replace ONLY the signUp function in your auth.js with this:
-
 async signUp(email, password, userData) {
   if (!this.isAvailable()) {
     throw new Error('Authentication service not available');
@@ -33,13 +30,23 @@ async signUp(email, password, userData) {
 
     // Create user profile if signup successful
     if (data.user) {
-      // Build profile data with only the fields that exist in your table
+      // ✅ FORCE CUSTOMER STATUS TO ACTIVE - NO EXCEPTIONS
+      let userStatus = 'active'; // Default to active
+      
+      if (userData.role === 'middleman' || userData.requestedRole) {
+        userStatus = 'pending'; // Only middleman requires approval
+      }
+      // For customers, status remains 'active'
+
+      console.log(`Setting user status to: ${userStatus} for role: ${userData.role}`);
+
+      // Build profile data
       const profileData = {
         email,
         name: userData.name,
         phone: userData.phone,
         role: userData.role || 'customer',
-        status: userData.role === 'customer' ? 'active' : 'pending'
+        status: userStatus // ✅ This will be 'active' for customers
       };
 
       // Add optional fields only if they exist
@@ -47,10 +54,24 @@ async signUp(email, password, userData) {
       if (userData.address) profileData.location = userData.address;
       if (userData.bankDetails) profileData.bank_details = userData.bankDetails;
       if (userData.requestedRole) profileData.requested_role = userData.requestedRole;
+      
+      // ✅ Customer-specific fields (auto-approved)
+      if (userData.role === 'customer') {
+        if (userData.serviceNumber) profileData.service_number = userData.serviceNumber;
+        if (userData.pincode) profileData.pincode = userData.pincode;
+        if (userData.coordinates) profileData.coordinates = userData.coordinates;
+        if (userData.moduleType) profileData.module_type = userData.moduleType;
+        if (userData.kwCapacity) profileData.kw_capacity = userData.kwCapacity;
+        if (userData.houseType) profileData.house_type = userData.houseType;
+        if (userData.floors) profileData.floors = userData.floors;
+        if (userData.remarks) profileData.remarks = userData.remarks;
+        if (userData.customerRefNumber) profileData.customer_ref_number = userData.customerRefNumber;
+        if (userData.created_by_freelancer) profileData.created_by_freelancer = userData.created_by_freelancer;
+      }
 
       console.log('Creating profile with data:', profileData);
-      
-      await this.createUserProfile(data.user.id, profileData);
+      const createdProfile = await this.createUserProfile(data.user.id, profileData);
+      console.log('Profile created:', createdProfile);
     }
 
     return data;
@@ -59,6 +80,7 @@ async signUp(email, password, userData) {
     throw error;
   }
 },
+
 // Add this function to your authService object in auth.js
 
 async deactivateUser(userId) {

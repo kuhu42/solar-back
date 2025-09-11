@@ -21,6 +21,7 @@ const LoginScreen = () => {
     password: '',
     confirmPassword: '',
     address: '',
+    pincode: '',
     coordinates: { lat: null, lng: null },
     moduleType: '',
     kwCapacity: '',
@@ -42,6 +43,7 @@ const LoginScreen = () => {
     confirmPassword: '',
     education: '',
     address: '',
+    pincode: '',
     photo: null,
     aadharPhoto: null,
     panPhoto: null,
@@ -114,56 +116,78 @@ const LoginScreen = () => {
     alert(`${file.name} uploaded successfully!`);
   };
 
-  const handleCustomerSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validation
-    if (customerForm.password !== customerForm.confirmPassword) {
-      alert('Passwords do not match!');
-      return;
-    }
-    
-    if (!customerForm.coordinates.lat || !customerForm.coordinates.lng) {
-      alert('Please capture your location coordinates.');
-      return;
-    }
+const handleCustomerSubmit = async (e) => {
+  e.preventDefault();
+  
+  // Validation
+  if (customerForm.password !== customerForm.confirmPassword) {
+    alert('Passwords do not match!');
+    return;
+  }
+  
+  if (!customerForm.coordinates.lat || !customerForm.coordinates.lng) {
+    alert('Please capture your location coordinates.');
+    return;
+  }
 
-    try {
-      if (isLiveMode) {
-        // In live mode, register customer and auto-approve
-        await register({
-          email: customerForm.email,
-          password: customerForm.password,
-          name: customerForm.name,
-          phone: customerForm.phone,
-          role: USER_ROLES.CUSTOMER,
-          status: 'active', // Auto-approve customers
-          serviceNumber: customerForm.serviceNumber,
-          address: customerForm.address,
-          coordinates: customerForm.coordinates,
-          moduleType: customerForm.moduleType,
-          kwCapacity: customerForm.kwCapacity,
-          houseType: customerForm.houseType,
-          floors: customerForm.floors,
-          remarks: customerForm.remarks,
-          customerRefNumber: `CUST-${Date.now()}`
-        });
-        
-        alert('Customer registration successful! You can now login with your credentials.');
-      } else {
-        // Demo mode - just show success message
-        alert('Customer registration submitted! You can now login with demo credentials.');
-      }
+  // Validate pincode
+  if (!/^[0-9]{6}$/.test(customerForm.pincode)) {
+    alert('Please enter a valid 6-digit pincode.');
+    return;
+  }
+
+  try {
+    if (isLiveMode) {
+      // ✅ In live mode, register customer with immediate activation
+      await register({
+        email: customerForm.email,
+        password: customerForm.password,
+        name: customerForm.name,
+        phone: customerForm.phone,
+        role: USER_ROLES.CUSTOMER,
+        status: 'active', // ✅ Auto-approve customers
+        serviceNumber: customerForm.serviceNumber,
+        address: customerForm.address,
+        pincode: customerForm.pincode,
+        coordinates: customerForm.coordinates,
+        moduleType: customerForm.moduleType,
+        kwCapacity: customerForm.kwCapacity,
+        houseType: customerForm.houseType,
+        floors: customerForm.floors,
+        remarks: customerForm.remarks,
+        customerRefNumber: `CUST-${Date.now()}`
+      });
       
-      setActiveMode('login');
-    } catch (error) {
-      alert(`Registration failed: ${error.message}`);
+      alert('Customer registration successful! You can now login immediately with your credentials.');
+    } else {
+      // Demo mode - just show success message
+      alert('Customer registration submitted! You can now login with demo credentials.');
     }
-  };
+    
+    setActiveMode('login');
+  } catch (error) {
+    alert(`Registration failed: ${error.message}`);
+  }
+};
+
 
   const handleProfessionalSubmit = async (e) => {
     e.preventDefault();
-    
+     if (professionalForm.password !== professionalForm.confirmPassword) {
+    alert('Passwords do not match!');
+    return;
+  }
+  
+  if (!professionalForm.role) {
+    alert('Please select your professional role.');
+    return;
+  }
+
+  // Validate pincode
+  if (!/^[0-9]{6}$/.test(professionalForm.pincode)) {
+    alert('Please enter a valid 6-digit pincode.');
+    return;
+  }
     // Validation
     if (professionalForm.password !== professionalForm.confirmPassword) {
       alert('Passwords do not match!');
@@ -188,6 +212,7 @@ const LoginScreen = () => {
           status: 'pending', // Requires admin approval
           education: professionalForm.education,
           address: professionalForm.address,
+          pincode: professionalForm.pincode,
           bankDetails: professionalForm.bankDetails
         });
         
@@ -383,15 +408,29 @@ const LoginScreen = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
-              <textarea
-                value={customerForm.address}
-                onChange={(e) => setCustomerForm(prev => ({ ...prev, address: e.target.value }))}
-                rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
+  <textarea
+    value={customerForm.address}
+    onChange={(e) => setCustomerForm(prev => ({ ...prev, address: e.target.value }))}
+    rows={3}
+    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    required
+  />
+</div>
+
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Pincode *</label>
+  <input
+    type="text"
+    value={customerForm.pincode}
+    onChange={(e) => setCustomerForm(prev => ({ ...prev, pincode: e.target.value }))}
+    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    required
+    pattern="[0-9]{6}"
+    maxLength="6"
+    placeholder="Enter 6-digit pincode"
+  />
+</div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Location Coordinates *</label>
@@ -626,15 +665,29 @@ const LoginScreen = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
-              <textarea
-                value={professionalForm.address}
-                onChange={(e) => setProfessionalForm(prev => ({ ...prev, address: e.target.value }))}
-                rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-            </div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Address *</label>
+  <textarea
+    value={professionalForm.address}
+    onChange={(e) => setProfessionalForm(prev => ({ ...prev, address: e.target.value }))}
+    rows={3}
+    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    required
+  />
+</div>
+
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Pincode *</label>
+  <input
+    type="text"
+    value={professionalForm.pincode}
+    onChange={(e) => setProfessionalForm(prev => ({ ...prev, pincode: e.target.value }))}
+    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    required
+    pattern="[0-9]{6}"
+    maxLength="6"
+    placeholder="Enter 6-digit pincode"
+  />
+</div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Bank Details *</label>

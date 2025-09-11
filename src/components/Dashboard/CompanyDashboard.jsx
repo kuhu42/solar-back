@@ -5,9 +5,14 @@ import { dbService } from '../../lib/supabase.js';
 import { USER_STATUS, PROJECT_STATUS, INVENTORY_STATUS } from '../../types/index.js';
 import InventoryManager from '../Common/InventoryManager.jsx';
 import PerformanceChart from '../Common/PerformanceChart.jsx';
+import TranslatedText from '../TranslatedText.jsx'; 
+import LanguageSwitcher from '../../components/LanguageSwitcher.jsx';
 import ProjectPipeline from '../Common/ProjectPipeline.jsx';
 import GPSMap from '../Common/GPSMap.jsx';
 import ModeToggle from '../Common/ModeToggle.jsx';
+// import useTranslation from '../../hooks/useLanguage.js';
+import { useLanguage } from '../../context/LanguageContext.js';
+
 import { 
   Users, 
   Briefcase, 
@@ -26,7 +31,10 @@ import {
   X
 } from 'lucide-react';
 
+
+
 const CompanyDashboard = () => {
+  const { t, currentLanguage } = useLanguage();
   const { 
     currentUser, 
     users, 
@@ -90,10 +98,13 @@ const CompanyDashboard = () => {
         payload: { userId, status: 'active', role }
       });
 
-      showToast('User approved successfully!');
+      //showToast('User approved successfully!');
+      showToast(t('userApprovedSuccess')); 
+
     } catch (error) {
       console.error('Error approving user:', error);
-      showToast(`Error approving user: ${error.message}`, 'error');
+      // showToast(`Error approving user: ${error.message}`, 'error');
+      showToast(`${t('errorApprovingUser')}: ${error.message}`, 'error');
     }
   };
 
@@ -112,10 +123,14 @@ const CompanyDashboard = () => {
         payload: { userId, status: 'rejected' }
       });
 
-      showToast('User rejected');
+      // showToast('User rejected');
+      showToast(t('userRejected'));
+
     } catch (error) {
       console.error('Error rejecting user:', error);
-      showToast(`Error rejecting user: ${error.message}`, 'error');
+      // showToast(`Error rejecting user: ${error.message}`, 'error');
+      showToast(`${t('errorRejectingUser')}: ${error.message}`, 'error');
+
     }
   };
 
@@ -221,12 +236,14 @@ const CompanyDashboard = () => {
   // Validation
   if (!createProjectForm.title || !createProjectForm.value || !createProjectForm.description || 
       !createProjectForm.location || !createProjectForm.customerId || !createProjectForm.agentId) {
-    showToast('Please fill in all required fields', 'error');
+    // showToast('Please fill in all required fields', 'error');
+    showToast(t('pleaseFillFields'), 'error'); 
     return;
   }
 
   if (createProjectForm.selectedEquipment.length === 0) {
-    showToast('Please select at least one piece of equipment', 'error');
+    // showToast('Please select at least one piece of equipment', 'error');
+    showToast(t('pleaseSelectEquipment'), 'error'); 
     return;
   }
 
@@ -270,7 +287,9 @@ const CompanyDashboard = () => {
         }
       }
       
-      showToast('Project created successfully!');
+      // showToast('Project created successfully!');
+      showToast(t('projectCreatedSuccess'));
+
     } else {
       // Demo mode - update local state (keep existing logic)
       const newProject = {
@@ -327,7 +346,8 @@ const CompanyDashboard = () => {
 
   } catch (error) {
     console.error('Error creating project:', error);
-    showToast(`Error creating project: ${error.message}`, 'error');
+    // showToast(`Error creating project: ${error.message}`, 'error');
+    showToast(`${t('errorCreatingProject')}: ${error.message}`, 'error');
   }
 };
 
@@ -341,19 +361,54 @@ const CompanyDashboard = () => {
     }));
   };
 
+  // const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
+  //   <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+  //     <div className="flex items-center justify-between">
+  //       <div>
+  //         <p className="text-sm font-medium text-gray-600">{title}</p>
+  //         <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
+  //         {subtitle && (
+  //           <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+  //         )}
+  //         {trend && (
+  //           <div className="flex items-center mt-2">
+  //             <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
+  //             <span className="text-sm text-green-600 font-medium">{trend}</span>
+  //           </div>
+  //         )}
+  //       </div>
+  //       <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${color}`}>
+  //         <Icon className="w-6 h-6 text-white" />
+  //       </div>
+  //     </div>
+  //   </div>
+  // );
+  const LanguageDebugger = () => (
+    <div className="bg-yellow-100 p-3 rounded mb-4 text-sm">
+      <strong>🐛 Language Debug:</strong> Current: {currentLanguage} | 
+      Live Mode: "{t('liveMode')}" | 
+      Overview: "{t('overview')}"
+    </div>
+  );
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-sm font-medium text-gray-600">
+            {title} {/* ✅ ADD TranslatedText */}
+          </p>
           <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
           {subtitle && (
-            <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+            <p className="text-sm text-gray-500 mt-1">
+              {subtitle} {/* ✅ ADD TranslatedText */}
+            </p>
           )}
           {trend && (
             <div className="flex items-center mt-2">
               <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
-              <span className="text-sm text-green-600 font-medium">{trend}</span>
+              <span className="text-sm text-green-600 font-medium">
+                {trend} {/* ✅ ADD TranslatedText */}
+              </span>
             </div>
           )}
         </div>
@@ -366,8 +421,10 @@ const CompanyDashboard = () => {
 
   return (
     <div className="space-y-6">
+
+      <LanguageDebugger /> {/* Add this to test */}
       {/* Header with Mode Toggle */}
-      <div className="flex items-center justify-between">
+      {/* <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Company Dashboard</h1>
           <p className="text-gray-600">Manage your solar business operations and team</p>
@@ -378,39 +435,59 @@ const CompanyDashboard = () => {
           size="normal"
           showLabels={true}
         />
+      </div> */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {t('companyDashboard')} 
+          </h1>
+          <p className="text-gray-600">
+            {/* <TranslatedText>Manage your solar business operations and team</TranslatedText> */}
+            {t('manageOperations')}
+          </p>
+        </div>
+        <div className="flex items-center space-x-4">
+          <LanguageSwitcher /> {/* ✅ ADD Language Switcher */}
+          <ModeToggle 
+            isLiveMode={isLiveMode} 
+            onToggle={toggleMode}
+            size="normal"
+            showLabels={true}
+          />
+        </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Projects"
+          title={t('totalProjects')}
           value={projects.length}
           icon={Briefcase}
           color="bg-blue-500"
-          subtitle={`${activeProjects.length} active`}
-          trend="+12% this month"
+          subtitle={`${activeProjects.length} ${t('active')}`}
+          trend={`+12% ${t('thisMonth')}`}
         />
         <StatCard
-          title="Active Staff"
+          title={t('activeStaff')}
           value={activeStaff.length}
           icon={Users}
           color="bg-green-500"
-          subtitle={`${pendingUsers.length} pending approval`}
+          subtitle={`${pendingUsers.length} ${t('pendingApproval')}`}
         />
         <StatCard
-          title="Total Revenue"
+          title={t('totalRevenue')}
           value={`₹${totalRevenue.toLocaleString()}`}
           icon={DollarSign}
           color="bg-purple-500"
-          subtitle="From completed projects"
-          trend="+8% this month"
+          subtitle={t('fromCompletedProjects')}
+          trend={`+8% ${t('thisMonth')}`}
         />
         <StatCard
-          title="Inventory Items"
+          title={t('inventoryItems')}
           value={inventoryStats.total}
           icon={Package}
           color="bg-orange-500"
-          subtitle={`₹${inventoryStats.totalValue.toLocaleString()} total value`}
+          subtitle={`₹${inventoryStats.totalValue.toLocaleString()} ${t('totalValue')}`}
         />
       </div>
 
@@ -418,7 +495,7 @@ const CompanyDashboard = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200 px-6 py-4">
           <div className="flex space-x-2 overflow-x-auto">
-            <button
+            {/* <button
               onClick={() => setActiveTab('overview')}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
                 activeTab === 'overview'
@@ -427,7 +504,18 @@ const CompanyDashboard = () => {
               }`}
             >
               Overview
+            </button> */}
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
+                activeTab === 'overview'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {t('overview')}
             </button>
+
             <button
               onClick={() => setActiveTab('inventory')}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
@@ -436,7 +524,7 @@ const CompanyDashboard = () => {
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              Inventory Management
+              {t('inventoryManagement')}
             </button>
             <button
               onClick={() => setActiveTab('users')}
@@ -446,7 +534,7 @@ const CompanyDashboard = () => {
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              User Management
+              {t('userManagement')} 
             </button>
             <button
               onClick={() => setActiveTab('projects')}
@@ -456,7 +544,7 @@ const CompanyDashboard = () => {
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              Projects
+              {t('projectManagement')} 
             </button>
             <button
               onClick={() => setActiveTab('analytics')}
@@ -466,7 +554,7 @@ const CompanyDashboard = () => {
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              Analytics
+              {t('analytics')} 
             </button>
             <button
               onClick={() => setActiveTab('tracking')}
@@ -476,7 +564,7 @@ const CompanyDashboard = () => {
                   : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
-              Staff Tracking
+              {t('staffTracking')}
             </button>
           </div>
         </div>
@@ -504,26 +592,26 @@ const CompanyDashboard = () => {
               {/* Quick Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4">
-                  <h4 className="font-medium text-blue-900">Active Projects</h4>
+                  <h4 className="font-medium text-blue-900">{t('activeProjects')}</h4>
                   <p className="text-2xl font-bold text-blue-600 mt-2">{activeProjects.length}</p>
-                  <p className="text-sm text-blue-700">In progress</p>
+                  <p className="text-sm text-blue-700">{t('inProgress')}</p>
                 </div>
                 <div className="bg-green-50 rounded-lg p-4">
-                  <h4 className="font-medium text-green-900">Completed Projects</h4>
+                  <h4 className="font-medium text-green-900">{t('completedProjects')}</h4>
                   <p className="text-2xl font-bold text-green-600 mt-2">{completedProjects.length}</p>
-                  <p className="text-sm text-green-700">This month</p>
+                  <p className="text-sm text-green-700">{t('thisMonth')}</p>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-4">
-                  <h4 className="font-medium text-purple-900">Inventory Value</h4>
+                  <h4 className="font-medium text-purple-900">{t('inventoryValue')}</h4>
                   <p className="text-2xl font-bold text-purple-600 mt-2">₹{inventoryStats.totalValue.toLocaleString()}</p>
                   <p className="text-sm text-purple-700">{inventoryStats.total} items</p>
                 </div>
                 <div className="bg-orange-50 rounded-lg p-4">
-                  <h4 className="font-medium text-orange-900">Open Complaints</h4>
+                  <h4 className="font-medium text-orange-900">{t('openComplaints')}</h4>
                   <p className="text-2xl font-bold text-orange-600 mt-2">
                     {complaints.filter(c => c.status === 'open').length}
                   </p>
-                  <p className="text-sm text-orange-700">Need attention</p>
+                  <p className="text-sm text-orange-700">{t('needAttention')}</p>
                 </div>
               </div>
 
@@ -610,14 +698,14 @@ const CompanyDashboard = () => {
                               className="flex items-center px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
                             >
                               <UserCheck className="w-4 h-4 mr-1" />
-                              Approve
+                              {t('approve')}
                             </button>
                             <button
                               onClick={() => handleRejectUser(user.id)}
                               className="flex items-center px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
                             >
                               <UserX className="w-4 h-4 mr-1" />
-                              Reject
+                               {t('reject')}
                             </button>
                           </div>
                         </div>
@@ -706,7 +794,7 @@ const CompanyDashboard = () => {
                   className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Create New Project
+                  {t('createNewProject')}
                 </button>
               </div>
               
@@ -781,7 +869,8 @@ const CompanyDashboard = () => {
                             type: 'UPDATE_PROJECT_PIPELINE',
                             payload: { projectId: project.id, pipelineStage: e.target.value }
                           });
-                          showToast('Project stage updated');
+                          // showToast('Project stage updated');
+                          showToast(t('projectStageUpdated'));
                         }}
                         className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       >
@@ -1033,13 +1122,13 @@ const CompanyDashboard = () => {
                   onClick={() => setShowCreateProject(false)}
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Create Project
+                  {t('createproject')}
                 </button>
               </div>
             </form>
@@ -1051,3 +1140,4 @@ const CompanyDashboard = () => {
 };
 
 export default CompanyDashboard;
+

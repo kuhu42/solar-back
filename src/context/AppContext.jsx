@@ -1564,95 +1564,139 @@ export function AppProvider({ children }) {
   //   }
   // };
   const addInventoryItem = async (inventoryData) => {
-  try {
-    if (state.isLiveMode) {
-      // ✅ Match your actual database schema
-      const dbData = {
-        serial_number: inventoryData.serialNumber,
-        type: inventoryData.type,
-        model: inventoryData.model,
-        status: inventoryData.status || 'in_stock',
-        location: inventoryData.location,
-        cost: inventoryData.cost ? parseFloat(inventoryData.cost) : null,
-        warranty_expiry: inventoryData.warrantyExpiry || null,
-        purchase_date: inventoryData.purchaseDate || null,
-        // ✅ Store extra info in metadata JSON field
-        metadata: {
-          company: inventoryData.company,
-          companyName: inventoryData.companyName,
-          addedBy: inventoryData.addedBy,
-          addedByName: inventoryData.addedByName,
-          specifications: inventoryData.specifications || {}
+    try {
+      if (state.isLiveMode) {
+        // ✅ Check authentication first
+        console.log('🔍 Checking authentication...');
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !user) {
+          throw new Error('Authentication required. Please log in again.');
         }
-      };
+        
+        console.log('✅ User authenticated:', user.id);
+        
+        // ✅ Check user profile
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        console.log('👤 User profile:', userProfile);
+        
+        if (!userProfile || userProfile.role !== 'company') {
+          throw new Error('Only company users can manage inventory');
+        }
 
-      console.log('📤 Sending to database:', dbData);
+        // ✅ Prepare data matching your database schema
+        const dbData = {
+          serial_number: inventoryData.serialNumber,
+          type: inventoryData.type,
+          model: inventoryData.model,
+          status: inventoryData.status || 'in_stock',
+          location: inventoryData.location,
+          cost: inventoryData.cost ? parseFloat(inventoryData.cost) : null,
+          warranty_expiry: inventoryData.warrantyExpiry || null,
+          purchase_date: inventoryData.purchaseDate || null,
+          metadata: {
+            company: inventoryData.company,
+            companyName: inventoryData.companyName,
+            addedBy: inventoryData.addedBy,
+            addedByName: inventoryData.addedByName,
+            specifications: inventoryData.specifications || {}
+          }
+        };
 
-      const { data, error } = await supabase
-        .from('inventory')
-        .insert([dbData])
-        .select();
+        console.log('📤 Sending to database:', dbData);
 
-      if (error) {
-        console.error('❌ Database error:', error);
-        throw error;
+        // ✅ Add timeout to prevent hanging
+        const insertPromise = supabase
+          .from('inventory')
+          .insert([dbData])
+          .select();
+
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Database operation timed out after 15 seconds')), 15000)
+        );
+
+        console.log('⏳ Starting database insert with timeout...');
+        const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
+
+        if (error) {
+          console.error('❌ Database error:', error);
+          console.error('❌ Error details:', JSON.stringify(error, null, 2));
+          
+          // Handle specific RLS errors
+          if (error.message?.includes('row-level security') || error.code === '42501') {
+            throw new Error('Permission denied. Please check if you have inventory management permissions.');
+          }
+          
+          throw error;
+        }
+
+        console.log('✅ Database response:', data);
+
+        if (!data || data.length === 0) {
+          throw new Error('No data returned from database');
+        }
+
+        // ✅ Convert back to frontend format
+        const savedItem = data[0];
+        const frontendData = {
+          id: savedItem.id,
+          serialNumber: savedItem.serial_number,
+          type: savedItem.type,
+          model: savedItem.model,
+          status: savedItem.status,
+          location: savedItem.location,
+          cost: savedItem.cost,
+          warrantyExpiry: savedItem.warranty_expiry,
+          purchaseDate: savedItem.purchase_date,
+          createdAt: savedItem.created_at,
+          // Extract from metadata
+          company: savedItem.metadata?.company,
+          companyName: savedItem.metadata?.companyName,
+          addedBy: savedItem.metadata?.addedBy,
+          addedByName: savedItem.metadata?.addedByName,
+          addedAt: savedItem.created_at,
+          specifications: savedItem.metadata?.specifications || {}
+        };
+
+        console.log('🎯 Final frontend data:', frontendData);
+
+        dispatch({ 
+          type: 'ADD_INVENTORY_ITEM', 
+          payload: frontendData 
+        });
+
+        showToast('Inventory item added successfully!');
+        return frontendData;
+        
+      } else {
+        // Demo mode
+        const newItem = {
+          id: `inv-${Date.now()}`,
+          ...inventoryData,
+          createdAt: new Date().toISOString(),
+          status: 'in_stock'
+        };
+
+        dispatch({ 
+          type: 'ADD_INVENTORY_ITEM', 
+          payload: newItem 
+        });
+
+        showToast('Inventory item added successfully! (Demo Mode)');
+        return newItem;
       }
-
-      console.log('✅ Database response:', data);
-
-      // ✅ Convert back to frontend format
-      const savedItem = data[0];
-      const frontendData = {
-        id: savedItem.id,
-        serialNumber: savedItem.serial_number,
-        type: savedItem.type,
-        model: savedItem.model,
-        status: savedItem.status,
-        location: savedItem.location,
-        cost: savedItem.cost,
-        warrantyExpiry: savedItem.warranty_expiry,
-        purchaseDate: savedItem.purchase_date,
-        createdAt: savedItem.created_at,
-        // ✅ Extract from metadata
-        company: savedItem.metadata?.company,
-        companyName: savedItem.metadata?.companyName,
-        addedBy: savedItem.metadata?.addedBy,
-        addedByName: savedItem.metadata?.addedByName,
-        addedAt: savedItem.created_at, // Use created_at as addedAt
-        specifications: savedItem.metadata?.specifications || {}
-      };
-
-      dispatch({ 
-        type: 'ADD_INVENTORY_ITEM', 
-        payload: frontendData 
-      });
-
-      showToast('Inventory item added successfully!');
-      return frontendData;
-      
-    } else {
-      // Demo mode stays the same
-      const newItem = {
-        id: `inv-${Date.now()}`,
-        ...inventoryData,
-        createdAt: new Date().toISOString(),
-        status: 'in_stock'
-      };
-
-      dispatch({ 
-        type: 'ADD_INVENTORY_ITEM', 
-        payload: newItem 
-      });
-
-      showToast('Inventory item added successfully! (Demo Mode)');
-      return newItem;
+    } catch (error) {
+      console.error('❌ Full error in addInventoryItem:', error);
+      showToast(`Error adding inventory: ${error.message}`, 'error');
+      throw error;
     }
-  } catch (error) {
-    console.error('Error adding inventory item:', error);
-    showToast(`Error adding inventory: ${error.message}`, 'error');
-    throw error;
-  }
-};
+  };
+
 
 
   const updateInventoryItem = async (id, updates) => {

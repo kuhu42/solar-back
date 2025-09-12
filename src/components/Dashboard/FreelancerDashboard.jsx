@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 // import { useApp } from '../../context/AppContext.jsx';
 import { useApp } from '../../hooks/useApp.js'
-import { LEAD_STATUS } from '../../types/index.js';
+//import { LEAD_STATUS } from '../../types/index.js';
+import { PROJECT_STATUS, PIPELINESTAGES, LEAD_STATUS } from '../../types/index.js';
 import PerformanceChart from '../Common/PerformanceChart.jsx';
 import { 
   TrendingUp, 
@@ -21,9 +22,20 @@ import {
 } from 'lucide-react';
 
 const FreelancerDashboard = () => {
-  const { currentUser, leads, dispatch, showToast } = useApp();
+  const { currentUser, leads, dispatch, showToast, createProject } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddLead, setShowAddLead] = useState(false);
+  const [showCreateProject, setShowCreateProject] = useState(false)
+  const [newProject, setNewProject] = useState({
+    title: '',
+    description: '',
+    location: '',
+    value: 0,
+    customerId: '',
+    customerName: '',
+    selectedEquipment: []
+  });
+
   const [newLead, setNewLead] = useState({
     customerName: '',
     email: '',
@@ -92,6 +104,69 @@ const FreelancerDashboard = () => {
     });
     showToast('Lead status updated!');
   };
+
+  // const handleCreateProject = async (e) => {
+  //   e.preventDefault()
+  //   try {
+  //     const projectData = {
+  //       ...newProject,
+  //       status: PROJECT_STATUS.PENDINGAGENTREVIEW,
+  //       pipelineStage: PIPELINESTAGES.FREELANCERCREATED,
+  //       freelancerId: currentUser?.id,
+  //       freelancerName: currentUser?.name,
+  //       createdBy: currentUser?.id
+  //     }
+      
+  //     await createProject(projectData)
+  //     showToast('Project created and sent for agent review!', 'success')
+  //     setShowCreateProject(false)
+  //     // Reset form
+  //   } catch (error) {
+  //     showToast('Error creating project: ' + error.message, 'error')
+  //   }
+  // };
+  const handleCreateProject = async (e) => {
+    e.preventDefault()
+    try {
+      const projectData = {
+        title: newProject.title,
+        description: newProject.description,
+        location: newProject.location,
+        value: parseFloat(newProject.value) || 0,
+        customer_name: newProject.customerName,
+        type: 'solar',  // ✅ REQUIRED field - you need to add this to your form or set default
+        status: 'pending',  // ✅ Use your database enum values
+        pipeline_stage: 'lead_generated',  // ✅ Use your database enum values  
+        assigned_to: currentUser?.id,  // ✅ Assign to freelancer (matches DB schema)
+        assigned_to_name: currentUser?.name,  // ✅ Freelancer name
+        // Add metadata for tracking
+        metadata: {
+          created_by_role: 'freelancer',
+          freelancer_id: currentUser?.id,
+          freelancer_name: currentUser?.name,
+          requires_agent_review: true
+        }
+      }
+      
+      await createProject(projectData)
+      showToast('Project created and sent for agent review!', 'success')
+      setShowCreateProject(false)
+      
+      // Reset form
+      setNewProject({
+        title: '',
+        description: '',
+        location: '',
+        value: 0,
+        customerId: '',
+        customerName: '',
+        selectedEquipment: []
+      })
+    } catch (error) {
+      showToast('Error creating project: ' + error.message, 'error')
+    }
+  };
+
 
   const StatCard = ({ title, value, icon: Icon, color, subtitle }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -213,6 +288,16 @@ const FreelancerDashboard = () => {
             >
               Earnings
             </button>
+            <button
+              onClick={() => setActiveTab('projects')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeTab === 'projects'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              Projects
+            </button>
           </div>
         </div>
 
@@ -278,6 +363,113 @@ const FreelancerDashboard = () => {
               </div>
             </div>
           )}
+
+
+          {activeTab === 'projects' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">My Projects</h3>
+                <button 
+                  onClick={() => setShowCreateProject(true)}
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Project
+                </button>
+              </div>
+              {/* Project creation modal - you'll need to add this */}
+              {/* Add this right before the closing </div> of the component */}
+              {showCreateProject && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+                  <div className="bg-white rounded-lg max-w-md w-full p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Project</h3>
+                    <form onSubmit={handleCreateProject} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Project Title</label>
+                        <input
+                          type="text"
+                          value={newProject.title}
+                          onChange={(e) => setNewProject({...newProject, title: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Project Type</label>
+                        <select
+                          value={newProject.type || 'solar'}
+                          onChange={(e) => setNewProject({...newProject, type: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          required
+                        >
+                          <option value="solar">Solar Installation</option>
+                          <option value="wind">Wind Installation</option>
+                          <option value="hybrid">Hybrid System</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea
+                          value={newProject.description}
+                          onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          rows="3"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                        <input
+                          type="text"
+                          value={newProject.location}
+                          onChange={(e) => setNewProject({...newProject, location: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Project Value</label>
+                        <input
+                          type="number"
+                          value={newProject.value}
+                          onChange={(e) => setNewProject({...newProject, value: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                        <input
+                          type="text"
+                          value={newProject.customerName}
+                          onChange={(e) => setNewProject({...newProject, customerName: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          required
+                        />
+                      </div>
+                      <div className="flex items-center space-x-3 pt-4">
+                        <button
+                          type="submit"
+                          className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700"
+                        >
+                          Create Project
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowCreateProject(false)}
+                          className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+
 
           {activeTab === 'my-leads' && (
             <div className="space-y-4">
@@ -390,6 +582,8 @@ const FreelancerDashboard = () => {
               </div>
             </div>
           )}
+
+
 
           {activeTab === 'performance' && (
             <div className="space-y-6">

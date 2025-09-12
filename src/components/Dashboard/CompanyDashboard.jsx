@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../hooks/useApp.js'
 import { dbService } from '../../lib/supabase.js';
-import { USER_STATUS, PROJECT_STATUS, INVENTORY_STATUS } from '../../types/index.js';
+//import { USER_STATUS, PROJECT_STATUS, INVENTORY_STATUS } from '../../types/index.js';
 import InventoryManager from '../Common/InventoryManager.jsx';
 import PerformanceChart from '../Common/PerformanceChart.jsx';
 import TranslatedText from '../TranslatedText.jsx'; 
@@ -11,6 +11,8 @@ import ProjectPipeline from '../Common/ProjectPipeline.jsx';
 import GPSMap from '../Common/GPSMap.jsx';
 import ModeToggle from '../Common/ModeToggle.jsx';
 // import useTranslation from '../../hooks/useLanguage.js';
+import { PROJECT_STATUS, PIPELINESTAGES, USER_STATUS, INVENTORY_STATUS } from '../../types/index.js';
+
 import { useLanguage } from '../../context/LanguageContext.js';
 
 import { 
@@ -48,6 +50,8 @@ const CompanyDashboard = () => {
     isLiveMode,
     toggleMode,
     dispatch, 
+    createProject,
+    approveProject,
     showToast 
   } = useApp();
   
@@ -64,6 +68,20 @@ const CompanyDashboard = () => {
     selectedEquipment: [],
     type: 'solar'
   });
+  // const pendingAdminReview = projects.filter(p => 
+  //   p.status === PROJECT_STATUS.PENDINGADMINREVIEW
+  // );
+  const pendingAdminReview = projects.filter(p => {
+    const isPendingStatus = p.status === PROJECT_STATUS.PENDINGADMINREVIEW;
+    const hasAdminFlag = p.metadata?.requires_admin_review === true;
+    
+    console.log('🔍 Project:', p.id, 'Status:', p.status, 'RequiresReview:', hasAdminFlag);
+    
+    // Match projects with PENDINGADMINREVIEW status OR those flagged for admin review
+    return isPendingStatus || hasAdminFlag;
+  });
+
+  console.log('📋 Found pending admin reviews:', pendingAdminReview.length);
 
   const pendingUsers = users.filter(u => u.status === USER_STATUS.PENDING);
   const activeProjects = projects.filter(p => p.status === PROJECT_STATUS.IN_PROGRESS);
@@ -131,6 +149,45 @@ const CompanyDashboard = () => {
       // showToast(`Error rejecting user: ${error.message}`, 'error');
       showToast(`${t('errorRejectingUser')}: ${error.message}`, 'error');
 
+    }
+  };
+ 
+  // const handleAdminApprove = async (projectId) => {
+  //   try {
+  //     await approveProject(projectId, {
+  //       status: 'approved',
+  //       pipeline_stage: 'approved',
+  //       installation_approved: true,  // ✅ Use your DB boolean field
+  //       metadata: {
+  //         ...project.metadata,
+  //         admin_approved: true,
+  //         admin_approved_at: new Date().toISOString(),
+  //         fully_approved: true,
+  //         requires_admin_review: false  // Clear the flag
+  //       }
+  //     })
+  //     showToast('Project given final approval!', 'success')  
+  //   } catch (error) {
+  //     showToast('Error giving final approval: ' + error.message, 'error')
+  //   }
+  // };
+  const handleAdminApprove = async (project) => {
+    try {
+      await approveProject(project.id, {
+        status: PROJECT_STATUS.APPROVED,
+        pipeline_stage: PIPELINESTAGES.APPROVED,
+        installation_approved: true,
+        metadata: {
+          ...project.metadata,  // ✅ Now 'project' is defined!
+          admin_approved: true,
+          admin_approved_at: new Date().toISOString(),
+          fully_approved: true,
+          requires_admin_review: false
+        }
+      })
+      showToast('Project given final approval!', 'success')
+    } catch (error) {
+      showToast('Error giving final approval: ' + error.message, 'error')
     }
   };
 
@@ -301,7 +358,7 @@ const CompanyDashboard = () => {
         agentId: projectData.agent_id,
         agentName: projectData.assigned_to_name,
         serialNumbers: projectData.serial_numbers,
-        pipelineStage: projectData.pipeline_stage,
+        pipeline_stage: projectData.pipeline_stage,
         createdAt: projectData.created_at,
         // Keep other fields as-is
         title: projectData.title,
@@ -786,109 +843,129 @@ const CompanyDashboard = () => {
           )}
 
           {activeTab === 'projects' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Project Management</h3>
+  <div className="space-y-4">
+    <div className="flex items-center justify-between">
+      <h3 className="text-lg font-semibold text-gray-900">All Projects</h3>
+      <div className="text-sm text-gray-600">
+        {projects.filter(p => p.status === PROJECT_STATUS.PENDINGADMINREVIEW).length} pending admin review
+      </div>
+    </div>
+    
+    {projects.map((project) => (
+      <div key={project.id} className={`border rounded-lg p-4 ${
+        project.status === PROJECT_STATUS.PENDINGADMINREVIEW 
+          ? 'border-orange-200 bg-orange-50' 
+          : 'border-gray-200 bg-white'
+      }`}>
+        
+        {/* Project details */}
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <h4 className="font-semibold text-gray-900">{project.title}</h4>
+            <p className="text-sm text-gray-600 mt-1">{project.description}</p>
+            <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+              <span>Customer: {project.customer_name}</span>
+              <span>Location: {project.location}</span>
+              <span>Value: ₹{project.value?.toLocaleString()}</span>
+              {project.assigned_to_name && <span>Agent: {project.assigned_to_name}</span>}
+            </div>
+          </div>
+          
+          <div className="flex flex-col items-end space-y-2">
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+              project.status === PROJECT_STATUS.PENDINGADMINREVIEW
+                ? 'bg-orange-100 text-orange-800'
+                : project.status === PROJECT_STATUS.APPROVED
+                ? 'bg-green-100 text-green-800'
+                : project.status === PROJECT_STATUS.AGENTAPPROVED
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {project.status === PROJECT_STATUS.PENDINGADMINREVIEW ? 'Pending Admin Review' : 
+               project.status === PROJECT_STATUS.APPROVED ? 'Approved' :
+               project.status === PROJECT_STATUS.AGENTAPPROVED ? 'Agent Approved' :
+               project.status}
+            </span>
+            
+            {/* ✅ Add approval buttons ONLY for pending admin review projects */}
+            {project.status === PROJECT_STATUS.PENDINGADMINREVIEW && (
+              <div className="flex space-x-2">
                 <button
-                  onClick={() => setShowCreateProject(true)}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={() => handleAdminApprove(project)}
+                  className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  {t('createNewProject')}
+                  Final Approve
+                </button>
+                <button
+                  onClick={() => handleAdminReject(project)}
+                  className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                >
+                  Reject
                 </button>
               </div>
+            )}
+          </div>
+        </div>
+      </div>
+    ))}
+    
+    {projects.length === 0 && (
+      <div className="text-center py-8 text-gray-500">
+        <p>No projects found</p>
+      </div>
+    )}
+  </div>
+)}
+
+
+
+
+          {activeTab === 'admin-review' && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Projects Pending Admin Review ({pendingAdminReview.length})
+              </h3>
               
-              <div className="grid gap-6">
-                {projects.map(project => (
-                  <div key={project.id} className="border border-gray-200 rounded-lg p-6">
-                    <div className="flex items-start justify-between mb-4">
+              {pendingAdminReview.length === 0 ? (
+                <p className="text-gray-500">No projects pending admin review</p>
+              ) : (
+                pendingAdminReview.map(project => (
+                  <div key={project.id} className="border border-orange-200 bg-orange-50 rounded-lg p-4">
+                    <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
-                        <p className="text-gray-600 mt-1">{project.description}</p>
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Users className="w-4 h-4 mr-1" />
-                            {project.customerName} (Ref: {project.customerRefNumber})
-                          </span>
-                          <span className="flex items-center">
-                            <MapPin className="w-4 h-4 mr-1" />
-                            {project.location}
-                          </span>
-                          <span className="flex items-center">
-                            <DollarSign className="w-4 h-4 mr-1" />
-                            ₹{project.value.toLocaleString()}
-                          </span>
-                        </div>
+                        <h4 className="font-medium text-gray-900">{project.title}</h4>
+                        <p className="text-sm text-gray-600 mt-1">{project.description}</p>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Customer: {project.customer_name} | Location: {project.location}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Value: ₹{project.value?.toLocaleString()} | Agent: {project.assigned_to_name}
+                        </p>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          project.status === PROJECT_STATUS.COMPLETED
-                            ? 'bg-green-100 text-green-800'
-                            : project.status === PROJECT_STATUS.IN_PROGRESS
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {project.status.replace('_', ' ')}
-                        </span>
+                      <div className="flex space-x-2 ml-4">
+                        <button
+                          onClick={() => handleAdminApprove(project)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                        >
+                          Final Approve
+                        </button>
+                        <button
+                          onClick={() => handleAdminReject(project)}
+                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                        >
+                          Reject
+                        </button>
                       </div>
-                    </div>
-
-                    {/* Assigned Equipment */}
-                    {project.serialNumbers && project.serialNumbers.length > 0 && (
-                      <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                        <h5 className="font-medium text-gray-900 mb-2">Assigned Equipment:</h5>
-                        <div className="flex flex-wrap gap-2">
-                          {project.serialNumbers.map(serial => {
-                            const item = inventory.find(i => i.serialNumber === serial);
-                            return (
-                              <div key={serial} className="flex items-center space-x-2 bg-white border border-gray-200 rounded px-3 py-1">
-                                <Package className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm font-mono">{serial}</span>
-                                {item && (
-                                  <span className={`w-2 h-2 rounded-full ${
-                                    item.status === INVENTORY_STATUS.INSTALLED ? 'bg-green-500' :
-                                    item.status === INVENTORY_STATUS.ASSIGNED ? 'bg-blue-500' : 'bg-gray-400'
-                                  }`}></span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Pipeline Stage */}
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Pipeline Stage:
-                      </label>
-                      <select
-                        value={project.pipelineStage || 'lead_generated'}
-                        onChange={(e) => {
-                          dispatch({
-                            type: 'UPDATE_PROJECT_PIPELINE',
-                            payload: { projectId: project.id, pipelineStage: e.target.value }
-                          });
-                          // showToast('Project stage updated');
-                          showToast(t('projectStageUpdated'));
-                        }}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      >
-                        <option value="lead_generated">Lead Generated</option>
-                        <option value="quotation_sent">Quotation Sent</option>
-                        <option value="bank_process">Bank Process</option>
-                        <option value="meter_applied">Meter Applied</option>
-                        <option value="ready_for_installation">Ready for Installation</option>
-                        <option value="installation_complete">Installation Complete</option>
-                        <option value="commissioned">Commissioned</option>
-                        <option value="active">Active</option>
-                      </select>
                     </div>
                   </div>
-                ))}
-              </div>
+                ))
+              )}
             </div>
           )}
+
+
+
+
 
           {activeTab === 'analytics' && (
             <div className="space-y-6">

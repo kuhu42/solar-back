@@ -19,7 +19,23 @@ export const PROJECT_STATUS = {
   APPROVED: 'approved',
   IN_PROGRESS: 'in_progress',
   COMPLETED: 'completed',
-  CANCELLED: 'cancelled'
+  CANCELLED: 'cancelled',
+  PENDINGAGENTREVIEW: 'pendingagentreview',
+  AGENTAPPROVED: 'agentapproved', 
+  PENDINGADMINREVIEW: 'pendingadminreview',
+  ADMINREJECTED: 'adminrejected',
+  REJECTED: 'rejected'
+};
+
+export const PIPELINESTAGES = {
+  FREELANCERCREATED: 'freelancercreated',
+  AGENTAPPROVED: 'agentapproved', 
+  PENDINGADMINREVIEW: 'pendingadminreview',
+  APPROVED: 'approved',
+  READYFORINSTALLATION: 'readyforinstallation', 
+  INSTALLATIONCOMPLETE: 'installationcomplete',
+  COMMISSIONED: 'commissioned',
+  ACTIVE: 'active'
 };
 
 export const TASK_STATUS = {

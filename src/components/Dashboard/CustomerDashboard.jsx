@@ -297,8 +297,8 @@ const CustomerDashboard = () => {
                           'meter_applied',
                           'ready_for_installation',
                           'installation_complete'
-                        ].indexOf(project.pipelineStage) >= index;
-                        const isCurrent = project.pipelineStage === stage;
+                        ].indexOf(project.pipeline_stage) >= index;
+                        const isCurrent = project.pipeline_stage === stage;
                         
                         return (
                           <div key={stage} className="flex items-center">
@@ -321,7 +321,7 @@ const CustomerDashboard = () => {
                       })}
                     </div>
                     <p className="text-sm text-gray-600 mt-2 capitalize">
-                      Current Stage: {project.pipelineStage?.replace('_', ' ')}
+                      Current Stage: {project.pipeline_stage?.replace('_', ' ')}
                     </p>
                   </div>
                 ))}

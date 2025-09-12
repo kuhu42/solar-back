@@ -14,12 +14,12 @@ const ProjectPipeline = ({ projects = [] }) => {
   ];
 
   const getProjectCountByStage = (stageKey) => {
-    return projects.filter(p => p.pipelineStage === stageKey).length;
+    return projects.filter(p => p.pipeline_stage === stageKey).length;
   };
 
   const getTotalValue = (stageKey) => {
     return projects
-      .filter(p => p.pipelineStage === stageKey)
+      .filter(p => p.pipeline_stage === stageKey)
       .reduce((sum, p) => sum + (p.value || 0), 0);
   };
 
@@ -65,7 +65,7 @@ const ProjectPipeline = ({ projects = [] }) => {
                 <div>
                   <p className="text-sm font-medium text-gray-900">{project.title}</p>
                   <p className="text-xs text-gray-600">
-                    Moved to {stages.find(s => s.key === project.pipelineStage)?.label || 'Unknown'}
+                    Moved to {stages.find(s => s.key === project.pipeline_stage)?.label || 'Unknown'}
                   </p>
                 </div>
               </div>

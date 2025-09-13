@@ -61,8 +61,8 @@ async createUserProfile(userData) {
   const { data, error } = await supabase
     .from('users')
     .insert([userData])
-    .select()
-    .maybeSingle(); // ✅ Changed from .single() to .maybeSingle()
+    // .select()
+    // .maybeSingle(); // ✅ Changed from .single() to .maybeSingle()
   
   if (error) {
     console.error('❌ Profile creation failed:', error);
@@ -103,7 +103,7 @@ async createUserProfile(userData) {
       .from('users')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
     
     if (error) throw error;
     return data;

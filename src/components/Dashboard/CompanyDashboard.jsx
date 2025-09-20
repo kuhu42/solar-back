@@ -8,7 +8,7 @@ import LanguageSwitcher from '../../components/LanguageSwitcher.jsx';
 import ProjectPipeline from '../Common/ProjectPipeline.jsx';
 import GPSMap from '../Common/GPSMap.jsx';
 import ModeToggle from '../Common/ModeToggle.jsx';
-//import TeamsDisplay from '../Common/TeamsDisplay.jsx';
+import TeamsDisplay from '../Common/teamDisplay.jsx';
 import { PROJECT_STATUS, PIPELINE_STAGES, USER_STATUS, INVENTORY_STATUS } from '../../types/index.js';
 import { useLanguage } from '../../context/LanguageContext.js';
 

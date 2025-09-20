@@ -1,6 +1,1366 @@
-import React, { createContext, useReducer, useEffect } from 'react';
+// import React, { createContext, useReducer, useEffect, useContext } from 'react';
+// import { dbService, supabase } from '../lib/supabase.js';
+// import { authService } from '../lib/auth.js';
+// import { teamGroupingService } from '../lib/teamGroupingService.js';
+
+// import { USER_STATUS, PROJECT_STATUS, PIPELINE_STAGES, PROJECT_SOURCE } from '../types/index.js';
+// import { 
+//   mockUsers, 
+//   mockProjects, 
+//   mockTasks, 
+//   mockAttendance, 
+//   mockInventory, 
+//   mockLeads, 
+//   mockComplaints, 
+//   mockInvoices, 
+//   mockNotifications 
+// } from '../data/mockData.js';
+
+// // Export the context so the hook can access it
+// export const AppContext = createContext();
+
+// const initialState = {
+//   currentUser: null,
+//   users: [],
+//   projects: [],
+//   tasks: [],
+//   attendance: [],
+//   inventory: [],
+//   leads: [],
+//   complaints: [],
+//   invoices: [],
+//   notifications: [],
+//   commissions: [],
+//   loading: false,
+//   error: null,
+//   isLiveMode: true,
+//   realTimeSubscriptions: []
+// };
+
+// function appReducer(state, action) {
+//   switch (action.type) {
+//     case 'SET_LIVE_MODE':
+//       return { ...state, isLiveMode: action.payload };
+    
+//     case 'SET_CURRENT_USER':
+//       return { ...state, currentUser: action.payload };
+    
+//     case 'SET_USERS':
+//       return { ...state, users: action.payload };
+    
+//     case 'SET_PROJECTS':
+//       return { ...state, projects: action.payload };
+
+//     case 'ADD_PROJECT':
+//       return { ...state, projects: [action.payload, ...state.projects] };
+    
+//     case 'SET_TASKS':
+//       return { ...state, tasks: action.payload };
+    
+//     case 'SET_ATTENDANCE':
+//       return { ...state, attendance: action.payload };
+    
+//     case 'SET_INVENTORY':
+//       return { ...state, inventory: action.payload };
+    
+//     case 'SET_LEADS':
+//       return { ...state, leads: action.payload };
+    
+//     case 'SET_COMPLAINTS':
+//       return { ...state, complaints: action.payload };
+    
+//     case 'SET_INVOICES':
+//       return { ...state, invoices: action.payload };
+    
+//     case 'SET_NOTIFICATIONS':
+//       return { ...state, notifications: action.payload };
+    
+//     case 'SET_COMMISSIONS':
+//       return { ...state, commissions: action.payload };
+
+//     case 'APPROVE_PROJECT':
+//       return { 
+//         ...state, 
+//         projects: state.projects.map(p => 
+//           p.id === action.payload.id ? { ...p, ...action.payload.updates } : p
+//         )
+//       };
+
+//     case 'ADD_INVENTORY_ITEM':
+//       return {
+//         ...state,
+//         inventory: [...state.inventory, action.payload]
+//       };
+
+//     case 'UPDATE_INVENTORY_ITEM':
+//       return {
+//         ...state,
+//         inventory: state.inventory.map(item =>
+//           item.id === action.payload.id ? { ...item, ...action.payload } : item
+//         )
+//       };
+
+//     // New: Support for installer assignment and installation completion
+//     case 'ASSIGN_INSTALLER_TO_PROJECT':
+//       return {
+//         ...state,
+//         projects: state.projects.map(project =>
+//           project.id === action.payload.projectId
+//             ? { 
+//                 ...project, 
+//                 installer_id: action.payload.installerId,
+//                 installer_name: action.payload.installerName,
+//                 installer_assigned: true,
+//                 pipeline_stage: PIPELINE_STAGES.INSTALLER_ASSIGNED
+//               }
+//             : project
+//         )
+//       };
+
+//     case 'MARK_INSTALLATION_COMPLETE':
+//       return {
+//         ...state,
+//         projects: state.projects.map(project =>
+//           project.id === action.payload.projectId
+//             ? { 
+//                 ...project, 
+//                 installation_complete: action.payload.installationComplete,
+//                 installer_notes: action.payload.installerNotes,
+//                 completion_date: action.payload.completionDate,
+//                 pipeline_stage: PIPELINE_STAGES.INSTALLATION_COMPLETE
+//               }
+//             : project
+//         )
+//       };
+
+//     case 'UPDATE_INVENTORY_STATUS':
+//       return {
+//         ...state,
+//         inventory: state.inventory.map(item =>
+//           item.serialNumber === action.payload.serialNumber
+//             ? { ...item, status: action.payload.status, ...action.payload.updates }
+//             : item
+//         )
+//       };
+    
+//     case 'LOGOUT':
+//       return { 
+//         ...state, 
+//         currentUser: null,
+//         realTimeSubscriptions: []
+//       };
+    
+//     case 'SET_LOADING':
+//       return { ...state, loading: action.payload };
+    
+//     case 'SET_ERROR':
+//       return { ...state, error: action.payload };
+    
+//     case 'ADD_SUBSCRIPTION':
+//       return { 
+//         ...state, 
+//         realTimeSubscriptions: [...state.realTimeSubscriptions, action.payload] 
+//       };
+    
+//     case 'CLEAR_SUBSCRIPTIONS':
+//       return { ...state, realTimeSubscriptions: [] };
+    
+//     case 'REALTIME_UPDATE':
+//       const { table, eventType, record } = action.payload;
+      
+//       switch (table) {
+//         case 'projects':
+//           if (eventType === 'INSERT') {
+//             return { ...state, projects: [record, ...state.projects] };
+//           } else if (eventType === 'UPDATE') {
+//             return {
+//               ...state,
+//               projects: state.projects.map(p => p.id === record.id ? record : p)
+//             };
+//           } else if (eventType === 'DELETE') {
+//             return {
+//               ...state,
+//               projects: state.projects.filter(p => p.id !== record.id)
+//             };
+//           }
+//           break;
+        
+//         case 'tasks':
+//           if (eventType === 'INSERT') {
+//             return { ...state, tasks: [record, ...state.tasks] };
+//           } else if (eventType === 'UPDATE') {
+//             return {
+//               ...state,
+//               tasks: state.tasks.map(t => t.id === record.id ? record : t)
+//             };
+//           }
+//           break;
+        
+//         case 'notifications':
+//           if (eventType === 'INSERT') {
+//             return { ...state, notifications: [record, ...state.notifications] };
+//           } else if (eventType === 'UPDATE') {
+//             return {
+//               ...state,
+//               notifications: state.notifications.map(n => n.id === record.id ? record : n)
+//             };
+//           }
+//           break;
+        
+//         default:
+//           return state;
+//       }
+//       return state;
+    
+//     case 'UPDATE_USER_STATUS':
+//       return {
+//         ...state,
+//         users: state.users.map(user =>
+//           user.id === action.payload.userId
+//             ? { ...user, status: action.payload.status, role: action.payload.role || user.role }
+//             : user
+//         )
+//       };
+    
+//     case 'ADD_ATTENDANCE':
+//       return {
+//         ...state,
+//         attendance: [...state.attendance, action.payload]
+//       };
+    
+//     case 'UPDATE_ATTENDANCE':
+//       return {
+//         ...state,
+//         attendance: state.attendance.map(att =>
+//           att.id === action.payload.id ? { ...att, ...action.payload } : att
+//         )
+//       };
+    
+//     case 'UPDATE_PROJECT_STATUS':
+//       return {
+//         ...state,
+//         projects: state.projects.map(project =>
+//           project.id === action.payload.projectId
+//             ? { ...project, status: action.payload.status }
+//             : project
+//         )
+//       };
+    
+//     case 'UPDATE_PROJECT_PIPELINE':
+//       return {
+//         ...state,
+//         projects: state.projects.map(project =>
+//           project.id === action.payload.projectId
+//             ? { ...project, pipeline_stage: action.payload.pipeline_stage }
+//             : project
+//         )
+//       };
+    
+//     case 'UPDATE_TASK_STATUS':
+//       return {
+//         ...state,
+//         tasks: state.tasks.map(task =>
+//           task.id === action.payload.taskId
+//             ? { ...task, status: action.payload.status, ...action.payload.updates }
+//             : task
+//         )
+//       };
+    
+//     case 'ADD_LEAD':
+//       return {
+//         ...state,
+//         leads: [...state.leads, action.payload]
+//       };
+    
+//     case 'UPDATE_LEAD':
+//       return {
+//         ...state,
+//         leads: state.leads.map(lead =>
+//           lead.id === action.payload.id ? { ...lead, ...action.payload.updates } : lead
+//         )
+//       };
+    
+//     case 'ADD_COMPLAINT':
+//       return {
+//         ...state,
+//         complaints: [...state.complaints, action.payload]
+//       };
+    
+//     case 'UPDATE_COMPLAINT_STATUS':
+//       return {
+//         ...state,
+//         complaints: state.complaints.map(complaint =>
+//           complaint.id === action.payload.complaintId
+//             ? { ...complaint, status: action.payload.status }
+//             : complaint
+//         )
+//       };
+
+//     case 'ADD_USER':
+//       return { 
+//         ...state, 
+//         users: [...state.users, action.payload] 
+//       };
+
+//     case 'UPDATE_USER':
+//       return { 
+//         ...state, 
+//         users: state.users.map(user => 
+//           user.id === action.payload.id ? action.payload : user
+//         ) 
+//       };
+
+//     case 'REMOVE_USER':
+//       return { 
+//         ...state, 
+//         users: state.users.filter(user => user.id !== action.payload.userId) 
+//       };
+
+//     case 'ADD_TASK':
+//       return {
+//         ...state,
+//         tasks: [action.payload, ...state.tasks]
+//       };
+    
+//     default:
+//       return state;
+//   }
+// }
+
+// export function AppProvider({ children }) {
+//   const [state, dispatch] = useReducer(appReducer, initialState);
+
+//   useEffect(() => {
+//     loadDemoData();
+    
+//     if (dbService && typeof dbService.isAvailable === 'function' && dbService.isAvailable()) {
+//       dispatch({ type: 'SET_LIVE_MODE', payload: true });
+//       initializeAuth();
+//       loadLiveData();
+//       setupRealTimeSubscriptions();
+//     }
+//   }, []);
+
+//   useEffect(() => {
+//     if (!state.isLiveMode || !dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable()) return;
+
+//     const usersSubscription = supabase
+//       .channel('users_changes')
+//       .on('postgres_changes', { 
+//         event: '*', 
+//         schema: 'public', 
+//         table: 'users' 
+//       }, (payload) => {
+//         console.log('User table change detected:', payload);
+        
+//         if (payload.eventType === 'INSERT') {
+//           dispatch({ type: 'ADD_USER', payload: payload.new });
+          
+//           if (payload.new.status === 'pending') {
+//             showToast(`New ${payload.new.role} registration awaiting approval!`);
+//           }
+//         }
+        
+//         if (payload.eventType === 'UPDATE') {
+//           dispatch({ type: 'UPDATE_USER', payload: payload.new });
+//         }
+        
+//         if (payload.eventType === 'DELETE') {
+//           dispatch({ type: 'REMOVE_USER', payload: { userId: payload.old.id } });
+//         }
+//       })
+//       .subscribe();
+
+//     dispatch({ type: 'ADD_SUBSCRIPTION', payload: usersSubscription });
+
+//     return () => {
+//       usersSubscription.unsubscribe();
+//     };
+//   }, [state.isLiveMode]);
+
+//   const initializeAuth = async () => {
+//     if (!dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable()) {
+//       console.log('Running in demo mode - Supabase not configured');
+//       return;
+//     }
+    
+//     try {
+//       const session = await authService.getSession();
+//       if (session?.user) {
+//         const profile = await authService.getUserProfileById(session.user.id);
+//         if (profile) {
+//           dispatch({ type: 'SET_CURRENT_USER', payload: profile });
+//         }
+//       }
+
+//       authService.onAuthStateChange(async (event, session) => {
+//         if (event === 'SIGNED_IN' && session?.user) {
+//           const profile = await authService.getUserProfileById(session.user.id);
+//           if (profile) {
+//             dispatch({ type: 'SET_CURRENT_USER', payload: profile });
+            
+//             if (state.isLiveMode) {
+//               await dbService.trackEvent('user_login', {
+//                 userId: profile.id,
+//                 role: profile.role
+//               });
+//             }
+//           }
+//         } else if (event === 'SIGNED_OUT') {
+//           dispatch({ type: 'LOGOUT' });
+//           dispatch({ type: 'CLEAR_SUBSCRIPTIONS' });
+//         }
+//       });
+//     } catch (error) {
+//       console.error('Auth initialization error:', error);
+//     }
+//   };
+
+//   const loadLiveData = async () => {
+//     if (!dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable()) {
+//       console.warn('Cannot load live data - Supabase not available');
+//       loadDemoData();
+//       return;
+//     }
+    
+//     try {
+//       dispatch({ type: 'SET_LOADING', payload: true });
+      
+//       const [
+//         users, projects, tasks, attendance, inventory, 
+//         leads, complaints, invoices, commissions
+//       ] = await Promise.all([
+//         dbService.getUserProfiles(),
+//         dbService.getProjects(),
+//         dbService.getTasks(),
+//         dbService.getAttendance(),
+//         dbService.getInventory(),
+//         dbService.getLeads(),
+//         dbService.getComplaints(),
+//         dbService.getInvoices(),
+//         dbService.getCommissions()
+//       ]);
+
+//       dispatch({ type: 'SET_USERS', payload: users });
+//       dispatch({ type: 'SET_PROJECTS', payload: projects });
+//       dispatch({ type: 'SET_TASKS', payload: tasks });
+//       dispatch({ type: 'SET_ATTENDANCE', payload: attendance });
+//       dispatch({ type: 'SET_INVENTORY', payload: inventory });
+//       dispatch({ type: 'SET_LEADS', payload: leads });
+//       dispatch({ type: 'SET_COMPLAINTS', payload: complaints });
+//       dispatch({ type: 'SET_INVOICES', payload: invoices });
+//       dispatch({ type: 'SET_COMMISSIONS', payload: commissions });
+
+//       if (state.currentUser) {
+//         const notifications = await dbService.getNotifications(state.currentUser.id);
+//         dispatch({ type: 'SET_NOTIFICATIONS', payload: notifications });
+//       }
+      
+//     } catch (error) {
+//       console.error('Error loading live data:', error);
+//       dispatch({ type: 'SET_ERROR', payload: error.message });
+//       console.log('Falling back to demo data');
+//       loadDemoData();
+//     } finally {
+//       dispatch({ type: 'SET_LOADING', payload: false });
+//     }
+//   };
+
+//   const loadDemoData = () => {
+//     console.log('Loading demo data');
+//     dispatch({ type: 'SET_USERS', payload: mockUsers });
+//     dispatch({ type: 'SET_PROJECTS', payload: mockProjects });
+//     dispatch({ type: 'SET_TASKS', payload: mockTasks });
+//     dispatch({ type: 'SET_ATTENDANCE', payload: mockAttendance });
+//     dispatch({ type: 'SET_INVENTORY', payload: mockInventory });
+//     dispatch({ type: 'SET_LEADS', payload: mockLeads });
+//     dispatch({ type: 'SET_COMPLAINTS', payload: mockComplaints });
+//     dispatch({ type: 'SET_INVOICES', payload: mockInvoices });
+//     dispatch({ type: 'SET_NOTIFICATIONS', payload: mockNotifications });
+//     dispatch({ type: 'SET_COMMISSIONS', payload: [] });
+//   };
+
+//   const setupRealTimeSubscriptions = () => {
+//     if (!state.isLiveMode || !dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable()) return;
+
+//     const projectsSub = dbService.subscribeToTable('projects', (payload) => {
+//       dispatch({
+//         type: 'REALTIME_UPDATE',
+//         payload: {
+//           table: 'projects',
+//           eventType: payload.eventType,
+//           record: payload.new || payload.old
+//         }
+//       });
+//     });
+
+//     const tasksSub = dbService.subscribeToTable('tasks', (payload) => {
+//       dispatch({
+//         type: 'REALTIME_UPDATE',
+//         payload: {
+//           table: 'tasks',
+//           eventType: payload.eventType,
+//           record: payload.new || payload.old
+//         }
+//       });
+//     });
+
+//     if (state.currentUser) {
+//       const notificationsSub = dbService.subscribeToTable('notifications', (payload) => {
+//         if (payload.new?.user_id === state.currentUser.id) {
+//           dispatch({
+//             type: 'REALTIME_UPDATE',
+//             payload: {
+//               table: 'notifications',
+//               eventType: payload.eventType,
+//               record: payload.new || payload.old
+//             }
+//           });
+//         }
+//       }, { filter: `user_id=eq.${state.currentUser.id}` });
+
+//       dispatch({ type: 'ADD_SUBSCRIPTION', payload: notificationsSub });
+//     }
+
+//     dispatch({ type: 'ADD_SUBSCRIPTION', payload: projectsSub });
+//     dispatch({ type: 'ADD_SUBSCRIPTION', payload: tasksSub });
+//   };
+
+//   const toggleMode = async (isLive) => {
+//     if (isLive && (!dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable())) {
+//       showToast('Live mode not available - Supabase not configured', 'error');
+//       return;
+//     }
+    
+//     dispatch({ type: 'SET_LIVE_MODE', payload: isLive });
+    
+//     if (isLive) {
+//       await loadLiveData();
+//       setupRealTimeSubscriptions();
+//     } else {
+//       loadDemoData();
+//       state.realTimeSubscriptions.forEach(sub => {
+//         if (sub && typeof sub.unsubscribe === 'function') {
+//           sub.unsubscribe();
+//         }
+//       });
+//       dispatch({ type: 'CLEAR_SUBSCRIPTIONS' });
+//     }
+//   };
+
+//   const setCurrentUser = (user) => {
+//     dispatch({ type: 'SET_CURRENT_USER', payload: user });
+//   };
+
+//   const logout = async () => {
+//     try {
+//       if (state.isLiveMode && authService) {
+//         await authService.signOut();
+//       }
+//       dispatch({ type: 'LOGOUT' });
+//     } catch (error) {
+//       console.error('Logout error:', error);
+//     }
+//   };
+
+//   const loginDemo = (email) => {
+//     const user = mockUsers.find(u => u.email === email);
+//     if (user) {
+//       dispatch({ type: 'SET_CURRENT_USER', payload: user });
+//       return user;
+//     }
+//     return null;
+//   };
+
+//   const loginLive = async (email, password) => {
+//     if (!authService || typeof authService.isAvailable !== 'function' || !authService.isAvailable()) {
+//       throw new Error('Live mode not available - use demo mode');
+//     }
+    
+//     try {
+//       const { user } = await authService.signIn(email, password);
+      
+//       if (user) {
+//         const profile = await authService.getUserProfileById(user.id);
+//         if (profile) {
+//           if (profile.status === 'rejected') {
+//             throw new Error('Your account has been rejected. Please contact support.');
+//           }
+          
+//           dispatch({ type: 'SET_CURRENT_USER', payload: profile });
+//           return profile;
+//         }
+//       }
+//     } catch (error) {
+//       console.error('Live login error:', error);
+//       throw error;
+//     }
+//   };
+
+//   const createDemoUsers = async () => {
+//     try {
+//       const results = await authService.createDemoUsers();
+//       console.log('Demo users creation results:', results);
+//       return results;
+//     } catch (error) {
+//       console.error('Error creating demo users:', error);
+//       throw error;
+//     }
+//   };
+
+//   // ===== PROJECT MANAGEMENT METHODS =====
+
+//   // Enhanced createProject to support both flows
+//   const createProject = async (projectData) => {
+//     if (state.isLiveMode) {
+//       try {
+//         // Determine project source based on current user role
+//         const source = state.currentUser?.role === 'company' ? PROJECT_SOURCE.ADMIN : 
+//                       state.currentUser?.role === 'freelancer' ? PROJECT_SOURCE.FREELANCER :
+//                       PROJECT_SOURCE.AGENT;
+
+//         // Set initial status and pipeline stage based on source
+//         let initialStatus, initialPipelineStage, metadata = {};
+
+//         if (source === PROJECT_SOURCE.ADMIN) {
+//           // Flow #1: Admin creates project
+//           initialStatus = PROJECT_STATUS.ADMIN_CREATED;
+//           initialPipelineStage = PIPELINE_STAGES.ADMIN_CREATED;
+//           metadata = {
+//             created_by_role: 'company',
+//             project_source: source,
+//             flow_type: 'admin_direct'
+//           };
+//         } else if (source === PROJECT_SOURCE.FREELANCER) {
+//           // Flow #2: Freelancer creates project
+//           initialStatus = 'pending';
+//           initialPipelineStage = PIPELINE_STAGES.FREELANCER_CREATED;
+//           metadata = {
+//             created_by_role: 'freelancer',
+//             freelancer_id: state.currentUser?.id,
+//             freelancer_name: state.currentUser?.name,
+//             requires_agent_review: true,
+//             project_source: source,
+//             flow_type: 'freelancer_to_admin'
+//           };
+//         }
+
+//         const enhancedProjectData = {
+//           ...projectData,
+//           status: initialStatus,
+//           pipeline_stage: initialPipelineStage,
+//           metadata: {
+//             ...metadata,
+//             ...projectData.metadata
+//           }
+//         };
+
+//         const newProject = await dbService.createProject(enhancedProjectData);
+//         return newProject;
+//       } catch (error) {
+//         console.error('Error creating project:', error);
+//         throw error;
+//       }
+//     } else {
+//       // Demo mode
+//       const project = {
+//         id: `proj-${Date.now()}`,
+//         ...projectData,
+//         createdAt: new Date().toISOString(),
+//         metadata: {
+//           project_source: state.currentUser?.role === 'company' ? PROJECT_SOURCE.ADMIN : PROJECT_SOURCE.FREELANCER,
+//           ...projectData.metadata
+//         }
+//       };
+//       dispatch({ type: 'ADD_PROJECT', payload: project });
+//       return project;
+//     }
+//   };
+
+//   const approveProject = async (projectId, updates) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const updatedProject = await dbService.updateProject(projectId, updates);
+//         return updatedProject;
+//       } catch (error) {
+//         console.error('Error approving project:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({ 
+//         type: 'APPROVE_PROJECT', 
+//         payload: { id: projectId, updates } 
+//       });
+//     }
+//   };
+
+//   // NEW: Installer assignment method (Flow #1)
+//   const assignInstallerToProject = async (projectId, installerId, installerName) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const updatedProject = await dbService.updateProject(projectId, {
+//           installer_id: installerId,
+//           installer_name: installerName,
+//           installer_assigned: true,
+//           pipeline_stage: PIPELINE_STAGES.INSTALLER_ASSIGNED,
+//           updated_at: new Date().toISOString()
+//         });
+//         return updatedProject;
+//       } catch (error) {
+//         console.error('Error assigning installer:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({
+//         type: 'ASSIGN_INSTALLER_TO_PROJECT',
+//         payload: { projectId, installerId, installerName }
+//       });
+//     }
+//   };
+
+//   // NEW: Mark installation complete method (Flow #1)
+//   const markInstallationComplete = async (projectId, notes) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const updatedProject = await dbService.updateProject(projectId, {
+//           installation_complete: true,
+//           installer_notes: notes,
+//           completion_date: new Date().toISOString().split('T')[0],
+//           pipeline_stage: PIPELINE_STAGES.INSTALLATION_COMPLETE
+//         });
+//         return updatedProject;
+//       } catch (error) {
+//         console.error('Error marking installation complete:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({
+//         type: 'MARK_INSTALLATION_COMPLETE',
+//         payload: {
+//           projectId,
+//           installationComplete: true,
+//           installerNotes: notes,
+//           completionDate: new Date().toISOString().split('T')[0]
+//         }
+//       });
+//     }
+//   };
+
+//   // NEW: Create task method (Flow #1)
+//   const createTask = async (taskData) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const newTask = await dbService.createTask(taskData);
+//         return newTask;
+//       } catch (error) {
+//         console.error('Error creating task:', error);
+//         throw error;
+//       }
+//     } else {
+//       const task = {
+//         id: `task-${Date.now()}`,
+//         ...taskData,
+//         createdAt: new Date().toISOString().split('T')[0]
+//       };
+//       dispatch({ type: 'ADD_TASK', payload: task });
+//       return task;
+//     }
+//   };
+
+//   // NEW: Update inventory status method (Flow #1)
+//   const updateInventoryStatus = async (serialNumber, status, updates = {}) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const updatedInventory = await dbService.updateInventory(serialNumber, {
+//           status,
+//           ...updates
+//         });
+//         return updatedInventory;
+//       } catch (error) {
+//         console.error('Error updating inventory:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({
+//         type: 'UPDATE_INVENTORY_STATUS',
+//         payload: { serialNumber, status, updates }
+//       });
+//     }
+//   };
+
+//   // ===== EXISTING METHODS =====
+
+//   const addLead = async (leadData) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const newLead = await dbService.createLead(leadData);
+//         return newLead;
+//       } catch (error) {
+//         console.error('Error adding lead:', error);
+//         throw error;
+//       }
+//     } else {
+//       const lead = {
+//         id: `lead-${Date.now()}`,
+//         ...leadData,
+//         createdAt: new Date().toISOString().split('T')[0]
+//       };
+//       dispatch({ type: 'ADD_LEAD', payload: lead });
+//       return lead;
+//     }
+//   };
+
+//   const updateLead = async (id, updates) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const updatedLead = await dbService.updateLead(id, updates);
+//         return updatedLead;
+//       } catch (error) {
+//         console.error('Error updating lead:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({
+//         type: 'UPDATE_LEAD',
+//         payload: { id, updates }
+//       });
+//     }
+//   };
+
+//   const addComplaint = async (complaintData) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const newComplaint = await dbService.createComplaint(complaintData);
+//         return newComplaint;
+//       } catch (error) {
+//         console.error('Error adding complaint:', error);
+//         throw error;
+//       }
+//     } else {
+//       const complaint = {
+//         id: `comp-${Date.now()}`,
+//         ...complaintData,
+//         createdAt: new Date().toISOString().split('T')[0]
+//       };
+//       dispatch({ type: 'ADD_COMPLAINT', payload: complaint });
+//       return complaint;
+//     }
+//   };
+
+//   const updateProject = async (id, updates) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const updatedProject = await dbService.updateProject(id, updates);
+//         return updatedProject;
+//       } catch (error) {
+//         console.error('Error updating project:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({
+//         type: 'UPDATE_PROJECT_STATUS',
+//         payload: { projectId: id, ...updates }
+//       });
+//     }
+//   };
+
+//   const updateTask = async (id, updates) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const updatedTask = await dbService.updateTask(id, updates);
+//         return updatedTask;
+//       } catch (error) {
+//         console.error('Error updating task:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({
+//         type: 'UPDATE_TASK_STATUS',
+//         payload: { taskId: id, ...updates }
+//       });
+//     }
+//   };
+
+//   const addAttendance = async (attendanceData) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const newAttendance = await dbService.createAttendance(attendanceData);
+//         return newAttendance;
+//       } catch (error) {
+//         console.error('Error adding attendance:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({ type: 'ADD_ATTENDANCE', payload: attendanceData });
+//     }
+//   };
+
+//   const updateAttendance = async (id, updates) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const updatedAttendance = await dbService.updateAttendance(id, updates);
+//         return updatedAttendance;
+//       } catch (error) {
+//         console.error('Error updating attendance:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({
+//         type: 'UPDATE_ATTENDANCE',
+//         payload: { id, ...updates }
+//       });
+//     }
+//   };
+
+//   const updateUserStatus = async (userId, status, role = null) => {
+//     if (state.isLiveMode) {
+//       try {
+//         const updates = { status };
+//         if (role) updates.role = role;
+        
+//         await dbService.updateUserProfile(userId, updates);
+        
+//         const users = await dbService.getUserProfiles();
+//         dispatch({ type: 'SET_USERS', payload: users });
+        
+//       } catch (error) {
+//         console.error('Error updating user status:', error);
+//         throw error;
+//       }
+//     } else {
+//       dispatch({
+//         type: 'UPDATE_USER_STATUS',
+//         payload: { userId, status, role }
+//       });
+//     }
+//   };
+
+//   const uploadFile = async (file, metadata) => {
+//     if (state.isLiveMode) {
+//       try {
+//         return await dbService.uploadDocument(file, metadata);
+//       } catch (error) {
+//         console.error('Error uploading file:', error);
+//         throw error;
+//       }
+//     } else {
+//       return {
+//         id: `doc-${Date.now()}`,
+//         name: file.name,
+//         type: metadata.type,
+//         file_path: `demo/${file.name}`,
+//         uploaded_by: metadata.uploadedBy
+//       };
+//     }
+//   };
+
+//   const trackEvent = async (eventType, eventData = {}) => {
+//     if (state.isLiveMode) {
+//       await dbService.trackEvent(eventType, {
+//         ...eventData,
+//         userId: state.currentUser?.id
+//       });
+//     } else {
+//       console.log('Demo Analytics Event:', eventType, eventData);
+//     }
+//   };
+
+//   const addInventoryItem = async (inventoryData) => {
+//     try {
+//       if (state.isLiveMode) {
+//         console.log('Checking authentication...');
+//         const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+//         if (authError || !user) {
+//           throw new Error('Authentication required. Please log in again.');
+//         }
+        
+//         console.log('User authenticated:', user.id);
+        
+//         const { data: userProfile } = await supabase
+//           .from('users')
+//           .select('*')
+//           .eq('id', user.id)
+//           .single();
+        
+//         console.log('User profile:', userProfile);
+        
+//         if (!userProfile || userProfile.role !== 'company') {
+//           throw new Error('Only company users can manage inventory');
+//         }
+
+//         const dbData = {
+//           serial_number: inventoryData.serialNumber,
+//           type: inventoryData.type,
+//           model: inventoryData.model,
+//           status: inventoryData.status || 'in_stock',
+//           location: inventoryData.location,
+//           cost: inventoryData.cost ? parseFloat(inventoryData.cost) : null,
+//           warranty_expiry: inventoryData.warrantyExpiry || null,
+//           purchase_date: inventoryData.purchaseDate || null,
+//           metadata: {
+//             company: inventoryData.company,
+//             companyName: inventoryData.companyName,
+//             addedBy: inventoryData.addedBy,
+//             addedByName: inventoryData.addedByName,
+//             specifications: inventoryData.specifications || {}
+//           }
+//         };
+
+//         console.log('Sending to database:', dbData);
+
+//         const insertPromise = supabase
+//           .from('inventory')
+//           .insert([dbData])
+//           .select();
+
+//         const timeoutPromise = new Promise((_, reject) => 
+//           setTimeout(() => reject(new Error('Database operation timed out after 15 seconds')), 15000)
+//         );
+
+//         console.log('Starting database insert with timeout...');
+//         const { data, error } = await Promise.race([insertPromise, timeoutPromise]);
+
+//         if (error) {
+//           console.error('Database error:', error);
+//           console.error('Error details:', JSON.stringify(error, null, 2));
+          
+//           if (error.message?.includes('row-level security') || error.code === '42501') {
+//             throw new Error('Permission denied. Please check if you have inventory management permissions.');
+//           }
+          
+//           throw error;
+//         }
+
+//         console.log('Database response:', data);
+
+//         if (!data || data.length === 0) {
+//           throw new Error('No data returned from database');
+//         }
+
+//         const savedItem = data[0];
+//         const frontendData = {
+//           id: savedItem.id,
+//           serialNumber: savedItem.serial_number,
+//           type: savedItem.type,
+//           model: savedItem.model,
+//           status: savedItem.status,
+//           location: savedItem.location,
+//           cost: savedItem.cost,
+//           warrantyExpiry: savedItem.warranty_expiry,
+//           purchaseDate: savedItem.purchase_date,
+//           createdAt: savedItem.created_at,
+//           company: savedItem.metadata?.company,
+//           companyName: savedItem.metadata?.companyName,
+//           addedBy: savedItem.metadata?.addedBy,
+//           addedByName: savedItem.metadata?.addedByName,
+//           addedAt: savedItem.created_at,
+//           specifications: savedItem.metadata?.specifications || {}
+//         };
+
+//         console.log('Final frontend data:', frontendData);
+
+//         dispatch({ 
+//           type: 'ADD_INVENTORY_ITEM', 
+//           payload: frontendData 
+//         });
+
+//         showToast('Inventory item added successfully!');
+//         return frontendData;
+        
+//       } else {
+//         const newItem = {
+//           id: `inv-${Date.now()}`,
+//           ...inventoryData,
+//           createdAt: new Date().toISOString(),
+//           status: 'in_stock'
+//         };
+
+//         dispatch({ 
+//           type: 'ADD_INVENTORY_ITEM', 
+//           payload: newItem 
+//         });
+
+//         showToast('Inventory item added successfully! (Demo Mode)');
+//         return newItem;
+//       }
+//     } catch (error) {
+//       console.error('Full error in addInventoryItem:', error);
+//       showToast(`Error adding inventory: ${error.message}`, 'error');
+//       throw error;
+//     }
+//   };
+
+//   const updateInventoryItem = async (id, updates) => {
+//     try {
+//       if (state.isLiveMode) {
+//         const { data, error } = await supabase
+//           .from('inventory')
+//           .update(updates)
+//           .eq('id', id)
+//           .select();
+
+//         if (error) throw error;
+
+//         dispatch({ 
+//           type: 'UPDATE_INVENTORY_ITEM', 
+//           payload: data[0] 
+//         });
+
+//         showToast('Inventory item updated successfully!');
+//         return data[0];
+//       } else {
+//         const updatedItem = { id, ...updates };
+//         dispatch({ 
+//           type: 'UPDATE_INVENTORY_ITEM', 
+//           payload: updatedItem 
+//         });
+//         showToast('Inventory item updated successfully! (Demo Mode)');
+//         return updatedItem;
+//       }
+//     } catch (error) {
+//       console.error('Error updating inventory item:', error);
+//       showToast(`Error updating inventory: ${error.message}`, 'error');
+//       throw error;
+//     }
+//   };
+//   // ===== TEAM MANAGEMENT METHODS =====
+
+// const getTeamsByRole = async (role) => {
+//   try {
+//     if (state.isLiveMode) {
+//       return await teamGroupingService.getTeamsByRole(role);
+//     } else {
+//       // Demo mode - filter mock users by role and group by location
+//       const roleUsers = mockUsers.filter(user => user.role === role && user.pincode);
+//       const teams = {};
+      
+//       roleUsers.forEach(user => {
+//         const city = teamGroupingService.getCityFromPincode(user.pincode);
+//         const teamKey = `${city}_${role}`;
+        
+//         if (!teams[teamKey]) {
+//           teams[teamKey] = {
+//             id: teamKey,
+//             teamName: `${city} ${teamGroupingService.capitalizeRole(role)}s`,
+//             location: city,
+//             role: role,
+//             members: [],
+//             totalMembers: 0,
+//             activeMembers: 0,
+//             pendingMembers: 0
+//           };
+//         }
+        
+//         teams[teamKey].members.push(user);
+//         teams[teamKey].totalMembers++;
+        
+//         if (user.status === 'active') teams[teamKey].activeMembers++;
+//         if (user.status === 'pending') teams[teamKey].pendingMembers++;
+//       });
+      
+//       return Object.values(teams);
+//     }
+//   } catch (error) {
+//     console.error('Error getting teams by role:', error);
+//     throw error;
+//   }
+// };
+
+// const getUsersInSameLocation = async (pincode, role) => {
+//   try {
+//     if (state.isLiveMode) {
+//       return await teamGroupingService.getUsersInLocation(pincode, role);
+//     } else {
+//       // Demo mode
+//       const city = teamGroupingService.getCityFromPincode(pincode);
+//       const regionPrefix = pincode.charAt(0);
+      
+//       const locationUsers = mockUsers.filter(user => 
+//         user.role === role && 
+//         user.pincode && 
+//         user.pincode.startsWith(regionPrefix)
+//       );
+      
+//       return {
+//         teamName: `${city} ${teamGroupingService.capitalizeRole(role)}s`,
+//         location: city,
+//         role: role,
+//         members: locationUsers
+//       };
+//     }
+//   } catch (error) {
+//     console.error('Error getting users in location:', error);
+//     throw error;
+//   }
+// };
+
+// const refreshTeamData = async () => {
+//   try {
+//     // Refresh all data
+//     if (state.isLiveMode) {
+//       await loadLiveData();
+//     } else {
+//       loadDemoData();
+//     }
+//   } catch (error) {
+//     console.error('Error refreshing team data:', error);
+//     throw error;
+//   }
+// };
+
+// const getUserTeam = async (userId) => {
+//   try {
+//     if (state.isLiveMode) {
+//       return await teamGroupingService.getUserTeam(userId);
+//     } else {
+//       // Demo mode
+//       const user = mockUsers.find(u => u.id === userId);
+//       if (!user || !user.pincode || user.role === 'customer') {
+//         return null;
+//       }
+      
+//       const city = teamGroupingService.getCityFromPincode(user.pincode);
+//       const teammates = mockUsers.filter(u => 
+//         u.role === user.role && 
+//         u.pincode && 
+//         u.pincode.charAt(0) === user.pincode.charAt(0)
+//       );
+      
+//       return {
+//         teamName: `${city} ${teamGroupingService.capitalizeRole(user.role)}s`,
+//         location: city,
+//         role: user.role,
+//         members: teammates,
+//         totalMembers: teammates.length
+//       };
+//     }
+//   } catch (error) {
+//     console.error('Error getting user team:', error);
+//     return null;
+//   }
+// };
+
+// const getTeamStatistics = async () => {
+//   try {
+//     if (state.isLiveMode) {
+//       return await teamGroupingService.getTeamStatistics();
+//     } else {
+//       // Demo mode - calculate from mock data
+//       const teamUsers = mockUsers.filter(user => user.role !== 'customer' && user.pincode);
+      
+//       const stats = {
+//         totalTeams: 0,
+//         totalMembers: teamUsers.length,
+//         byRole: {},
+//         byLocation: {},
+//         byStatus: {
+//           active: 0,
+//           pending: 0,
+//           inactive: 0
+//         }
+//       };
+      
+//       const teamKeys = new Set();
+      
+//       teamUsers.forEach(user => {
+//         const city = teamGroupingService.getCityFromPincode(user.pincode);
+//         const teamKey = `${city}_${user.role}`;
+//         teamKeys.add(teamKey);
+        
+//         // By role
+//         if (!stats.byRole[user.role]) stats.byRole[user.role] = 0;
+//         stats.byRole[user.role]++;
+        
+//         // By location
+//         if (!stats.byLocation[city]) stats.byLocation[city] = 0;
+//         stats.byLocation[city]++;
+        
+//         // By status
+//         if (stats.byStatus[user.status] !== undefined) {
+//           stats.byStatus[user.status]++;
+//         }
+//       });
+      
+//       stats.totalTeams = teamKeys.size;
+//       return stats;
+//     }
+//   } catch (error) {
+//     console.error('Error getting team statistics:', error);
+//     throw error;
+//   }
+// };
+
+
+//   const showToast = (message, type = 'success') => {
+//     console.log(`Toast: ${message} (${type})`);
+//     alert(`${type.toUpperCase()}: ${message}`);
+//   };
+
+//   const value = {
+//     ...state,
+//     dispatch,
+//     toggleMode,
+//     setCurrentUser,
+//     logout,
+//     loginDemo,
+//     loginLive,
+//     createDemoUsers,
+    
+//     // Project management (both flows)
+//     createProject,
+//     approveProject,
+//     updateProject,
+//     assignInstallerToProject,  // NEW: For Flow #1
+//     markInstallationComplete,  // NEW: For Flow #1
+//     createTask,               // NEW: For Flow #1
+//     updateInventoryStatus,    // NEW: For Flow #1
+//     // Team management methods - ADD THESE
+//     getTeamsByRole,
+//     getUsersInSameLocation,
+//     refreshTeamData,
+//     getUserTeam,
+//     getTeamStatistics,
+    
+//     // Computed properties for team display
+//     userTeam: state.currentUser ? null : null, // You can compute this dynamically if needed
+//     teamStats: null, // You can compute this dynamically if needed
+//     // Other methods
+//     addLead,
+//     updateLead,
+//     addComplaint,
+//     updateTask,
+//     addAttendance,
+//     updateAttendance,
+//     updateUserStatus,
+//     addInventoryItem,
+//     updateInventoryItem,
+//     uploadFile,
+//     trackEvent,
+//     showToast,
+//     authService,
+//     dbService
+//   };
+  
+//   return (
+//     <AppContext.Provider value={value}>
+//       {children}
+//     </AppContext.Provider>
+//   );
+  
+// }
+// export const useApp = () => {
+//   const context = useContext(AppContext);
+//   if (!context) {
+//     throw new Error('useApp must be used within an AppProvider');
+//   }
+//   return context;
+// };
+import React, { createContext, useReducer, useEffect, useContext } from 'react';
 import { dbService, supabase } from '../lib/supabase.js';
 import { authService } from '../lib/auth.js';
+import { teamGroupingService } from '../lib/teamGroupingService.js';
+
 import { USER_STATUS, PROJECT_STATUS, PIPELINE_STAGES, PROJECT_SOURCE } from '../types/index.js';
 import { 
   mockUsers, 
@@ -329,16 +1689,20 @@ export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
 
   useEffect(() => {
-    loadDemoData();
+    // ⚠️ COMMENTED OUT: Remove demo data loading for live-only mode
+    // loadDemoData();
     
     if (dbService && typeof dbService.isAvailable === 'function' && dbService.isAvailable()) {
       dispatch({ type: 'SET_LIVE_MODE', payload: true });
       initializeAuth();
       loadLiveData();
-      setupRealTimeSubscriptions();
+      // ⚠️ COMMENTED OUT: Disable realtime to stop WebSocket errors
+      // setupRealTimeSubscriptions();
     }
   }, []);
 
+  // ⚠️ COMMENTED OUT: Disable users subscription to stop WebSocket errors
+  /*
   useEffect(() => {
     if (!state.isLiveMode || !dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable()) return;
 
@@ -375,6 +1739,7 @@ export function AppProvider({ children }) {
       usersSubscription.unsubscribe();
     };
   }, [state.isLiveMode]);
+  */
 
   const initializeAuth = async () => {
     if (!dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable()) {
@@ -417,7 +1782,9 @@ export function AppProvider({ children }) {
   const loadLiveData = async () => {
     if (!dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable()) {
       console.warn('Cannot load live data - Supabase not available');
-      loadDemoData();
+      dispatch({ type: 'SET_LIVE_MODE', payload: false });
+      // ⚠️ COMMENTED OUT: No demo fallback - show error instead
+      // loadDemoData();
       return;
     }
     
@@ -457,8 +1824,10 @@ export function AppProvider({ children }) {
     } catch (error) {
       console.error('Error loading live data:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
-      console.log('Falling back to demo data');
-      loadDemoData();
+      // ⚠️ COMMENTED OUT: No demo fallback - throw error for live-only mode
+      // console.log('Falling back to demo data');
+      // loadDemoData();
+      throw error; // Propagate error instead of falling back
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
@@ -478,6 +1847,8 @@ export function AppProvider({ children }) {
     dispatch({ type: 'SET_COMMISSIONS', payload: [] });
   };
 
+  // ⚠️ COMMENTED OUT: Disable realtime subscriptions to stop WebSocket errors
+  /*
   const setupRealTimeSubscriptions = () => {
     if (!state.isLiveMode || !dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable()) return;
 
@@ -523,6 +1894,7 @@ export function AppProvider({ children }) {
     dispatch({ type: 'ADD_SUBSCRIPTION', payload: projectsSub });
     dispatch({ type: 'ADD_SUBSCRIPTION', payload: tasksSub });
   };
+  */
 
   const toggleMode = async (isLive) => {
     if (isLive && (!dbService || typeof dbService.isAvailable !== 'function' || !dbService.isAvailable())) {
@@ -534,7 +1906,8 @@ export function AppProvider({ children }) {
     
     if (isLive) {
       await loadLiveData();
-      setupRealTimeSubscriptions();
+      // ⚠️ COMMENTED OUT: No realtime setup
+      // setupRealTimeSubscriptions();
     } else {
       loadDemoData();
       state.realTimeSubscriptions.forEach(sub => {
@@ -1123,6 +2496,191 @@ export function AppProvider({ children }) {
     }
   };
 
+  // ===== TEAM MANAGEMENT METHODS =====
+
+  const getTeamsByRole = async (role) => {
+    try {
+      if (state.isLiveMode) {
+        return await teamGroupingService.getTeamsByRole(role);
+      } else {
+        // ⚠️ COMMENTED OUT: No demo fallback for live-only mode
+        /*
+        // Demo mode - filter mock users by role and group by location
+        const roleUsers = mockUsers.filter(user => user.role === role && user.pincode);
+        const teams = {};
+        
+        roleUsers.forEach(user => {
+          const city = teamGroupingService.getCityFromPincode(user.pincode);
+          const teamKey = `${city}_${role}`;
+          
+          if (!teams[teamKey]) {
+            teams[teamKey] = {
+              id: teamKey,
+              teamName: `${city} ${teamGroupingService.capitalizeRole(role)}s`,
+              location: city,
+              role: role,
+              members: [],
+              totalMembers: 0,
+              activeMembers: 0,
+              pendingMembers: 0
+            };
+          }
+          
+          teams[teamKey].members.push(user);
+          teams[teamKey].totalMembers++;
+          
+          if (user.status === 'active') teams[teamKey].activeMembers++;
+          if (user.status === 'pending') teams[teamKey].pendingMembers++;
+        });
+        
+        return Object.values(teams);
+        */
+        throw new Error('Demo mode disabled - only live data available');
+      }
+    } catch (error) {
+      console.error('Error getting teams by role:', error);
+      throw error;
+    }
+  };
+
+  const getUsersInSameLocation = async (pincode, role) => {
+    try {
+      if (state.isLiveMode) {
+        return await teamGroupingService.getUsersInLocation(pincode, role);
+      } else {
+        // ⚠️ COMMENTED OUT: No demo fallback for live-only mode
+        /*
+        // Demo mode
+        const city = teamGroupingService.getCityFromPincode(pincode);
+        const regionPrefix = pincode.charAt(0);
+        
+        const locationUsers = mockUsers.filter(user => 
+          user.role === role && 
+          user.pincode && 
+          user.pincode.startsWith(regionPrefix)
+        );
+        
+        return {
+          teamName: `${city} ${teamGroupingService.capitalizeRole(role)}s`,
+          location: city,
+          role: role,
+          members: locationUsers
+        };
+        */
+        throw new Error('Demo mode disabled - only live data available');
+      }
+    } catch (error) {
+      console.error('Error getting users in location:', error);
+      throw error;
+    }
+  };
+
+  const refreshTeamData = async () => {
+    try {
+      // Refresh all data - live only
+      if (state.isLiveMode) {
+        await loadLiveData();
+      } else {
+        // ⚠️ COMMENTED OUT: No demo fallback
+        // loadDemoData();
+        throw new Error('Demo mode disabled - only live data available');
+      }
+    } catch (error) {
+      console.error('Error refreshing team data:', error);
+      throw error;
+    }
+  };
+
+  const getUserTeam = async (userId) => {
+    try {
+      if (state.isLiveMode) {
+        return await teamGroupingService.getUserTeam(userId);
+      } else {
+        // ⚠️ COMMENTED OUT: No demo fallback for live-only mode
+        /*
+        // Demo mode
+        const user = mockUsers.find(u => u.id === userId);
+        if (!user || !user.pincode || user.role === 'customer') {
+          return null;
+        }
+        
+        const city = teamGroupingService.getCityFromPincode(user.pincode);
+        const teammates = mockUsers.filter(u => 
+          u.role === user.role && 
+          u.pincode && 
+          u.pincode.charAt(0) === user.pincode.charAt(0)
+        );
+        
+        return {
+          teamName: `${city} ${teamGroupingService.capitalizeRole(user.role)}s`,
+          location: city,
+          role: user.role,
+          members: teammates,
+          totalMembers: teammates.length
+        };
+        */
+        return null;
+      }
+    } catch (error) {
+      console.error('Error getting user team:', error);
+      return null;
+    }
+  };
+
+  const getTeamStatistics = async () => {
+    try {
+      if (state.isLiveMode) {
+        return await teamGroupingService.getTeamStatistics();
+      } else {
+        // ⚠️ COMMENTED OUT: No demo fallback for live-only mode
+        /*
+        // Demo mode - calculate from mock data
+        const teamUsers = mockUsers.filter(user => user.role !== 'customer' && user.pincode);
+        
+        const stats = {
+          totalTeams: 0,
+          totalMembers: teamUsers.length,
+          byRole: {},
+          byLocation: {},
+          byStatus: {
+            active: 0,
+            pending: 0,
+            inactive: 0
+          }
+        };
+        
+        const teamKeys = new Set();
+        
+        teamUsers.forEach(user => {
+          const city = teamGroupingService.getCityFromPincode(user.pincode);
+          const teamKey = `${city}_${user.role}`;
+          teamKeys.add(teamKey);
+          
+          // By role
+          if (!stats.byRole[user.role]) stats.byRole[user.role] = 0;
+          stats.byRole[user.role]++;
+          
+          // By location
+          if (!stats.byLocation[city]) stats.byLocation[city] = 0;
+          stats.byLocation[city]++;
+          
+          // By status
+          if (stats.byStatus[user.status] !== undefined) {
+            stats.byStatus[user.status]++;
+          }
+        });
+        
+        stats.totalTeams = teamKeys.size;
+        return stats;
+        */
+        throw new Error('Demo mode disabled - only live data available');
+      }
+    } catch (error) {
+      console.error('Error getting team statistics:', error);
+      throw error;
+    }
+  };
+
   const showToast = (message, type = 'success') => {
     console.log(`Toast: ${message} (${type})`);
     alert(`${type.toUpperCase()}: ${message}`);
@@ -1147,6 +2705,17 @@ export function AppProvider({ children }) {
     createTask,               // NEW: For Flow #1
     updateInventoryStatus,    // NEW: For Flow #1
     
+    // Team management methods
+    getTeamsByRole,
+    getUsersInSameLocation,
+    refreshTeamData,
+    getUserTeam,
+    getTeamStatistics,
+    
+    // Computed properties for team display
+    userTeam: state.currentUser ? null : null, // You can compute this dynamically if needed
+    teamStats: null, // You can compute this dynamically if needed
+    
     // Other methods
     addLead,
     updateLead,
@@ -1163,10 +2732,18 @@ export function AppProvider({ children }) {
     authService,
     dbService
   };
-
+  
   return (
     <AppContext.Provider value={value}>
       {children}
     </AppContext.Provider>
   );
 }
+
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};

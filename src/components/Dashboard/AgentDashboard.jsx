@@ -1,8 +1,9 @@
 
+
+
+
 import React, { useState } from 'react';
-// import { useApp } from '../../context/AppContext.jsx';
 import { useApp } from '../../hooks/useApp.js'
-//import { PROJECT_STATUS, TASK_STATUS } from '../../types/index.js';
 import WhatsAppPreview from '../Common/WhatsAppPreview.jsx';
 import { PROJECT_STATUS, TASK_STATUS, PIPELINE_STAGES } from '../../types/index.js';
 import PDFPreview from '../Common/PDFPreview.jsx';
@@ -42,75 +43,27 @@ const AgentDashboard = () => {
   const [quotationData, setQuotationData] = useState(null);
   const [sendingQuote, setSendingQuote] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
-  // const pendingReviewProjects = projects.filter(p => 
-  //   p.status === PROJECT_STATUS.PENDINGAGENTREVIEW
-  // );
+
+  // ✅ FIXED: Filter for projects pending agent review
   const pendingReviewProjects = projects.filter(p => 
     p.status === 'pending' && 
     p.metadata?.requires_agent_review === true
   );
 
-  // Demo project data
-  const demoProjects = [
-    {
-      id: 'proj-001',
-      title: 'Mumbai Bandra West Solar Installation',
-      description: '5kW rooftop solar system with net metering',
-      customerName: 'Rajesh Sharma',
-      location: 'Bandra West, Mumbai',
-      value: 325000,
-      status: PROJECT_STATUS.IN_PROGRESS,
-      pipeline_stage: 'ready_for_installation',
-      assignedTo: currentUser?.id,
-      priority: 'high',
-      progress: 75,
-      type: 'Residential'
-    },
-    {
-      id: 'proj-002', 
-      title: 'Pune Koramangala Commercial Solar',
-      description: '15kW commercial solar setup with battery backup',
-      customerName: 'Tech Solutions Pvt Ltd',
-      location: 'Koramangala, Pune',
-      value: 875000,
-      status: PROJECT_STATUS.APPROVED,
-      pipeline_stage: 'bank_process',
-      assignedTo: currentUser?.id,
-      priority: 'medium',
-      progress: 45,
-      type: 'Commercial'
-    },
-    {
-      id: 'proj-003',
-      title: 'Delhi NCR Gurgaon Residential',
-      description: '8kW solar system with smart monitoring',
-      customerName: 'Priya Mehta',
-      location: 'Sector 47, Gurgaon',
-      value: 520000,
-      status: PROJECT_STATUS.PENDING,
-      pipeline_stage: 'quotation_sent',
-      assignedTo: currentUser?.id,
-      priority: 'low',
-      progress: 25,
-      type: 'Residential'
-    },
-    {
-      id: 'proj-004',
-      title: 'Bangalore HSR Layout Solar',
-      description: '6kW rooftop installation with grid tie',
-      customerName: 'Suresh Kumar',
-      location: 'HSR Layout, Bangalore',
-      value: 385000,
-      status: PROJECT_STATUS.COMPLETED,
-      pipeline_stage: 'active',
-      assignedTo: currentUser?.id,
-      priority: 'high',
-      progress: 100,
-      type: 'Residential'
-    }
-  ];
+  // ✅ FIXED: Now fetches real Supabase projects assigned to this agent
+  const myProjects = projects.filter(p => {
+    // Check multiple possible assignment field names from your database
+    return p.assigned_to === currentUser?.id || 
+           p.assignedTo === currentUser?.id ||
+           p.agent_id === currentUser?.id ||
+           p.assigned_to_name === currentUser?.name;
+  });
 
-  const myProjects = demoProjects.length > 0 ? demoProjects : projects.filter(p => p.assignedTo === currentUser?.id);
+  // ✅ DEBUG: Add console logs to verify data (remove these after testing)
+  console.log('All projects:', projects);
+  console.log('Current user:', currentUser);
+  console.log('My projects:', myProjects);
+
   const myTasks = tasks.filter(t => t.assignedTo === currentUser?.id);
   const todayAttendance = attendance.find(a => 
     a.userId === currentUser?.id && 
@@ -157,28 +110,7 @@ const AgentDashboard = () => {
       showToast('Checked out successfully!');
     }
   };
- 
 
-  // const handleApproveProject = async (projectId) => {
-  //   try {
-  //     await approveProject(projectId, {
-  //       status: 'approved',
-  //       pipeline_stage: 'agent_assigned', 
-  //       agent_id: currentUser?.id,
-  //       assigned_to: currentUser?.id,  // Assign to agent
-  //       assigned_to_name: currentUser?.name,
-  //       metadata: {
-  //         ...project.metadata,
-  //         agent_approved: true,
-  //         agent_approved_at: new Date().toISOString(),
-  //         requires_admin_review: true  // Flag for admin review
-  //       }
-  //     })
-  //     showToast('Project approved and assigned to you!', 'success')
-  //   } catch (error) {
-  //     showToast('Error approving project: ' + error.message, 'error')
-  //   }
-  // };
   const handleApproveProject = async (project) => {
     try {
       await approveProject(project.id, {
@@ -188,7 +120,7 @@ const AgentDashboard = () => {
         assigned_to: currentUser?.id,
         assigned_to_name: currentUser?.name,
         metadata: {
-          ...project.metadata,  // ✅ Now 'project' is defined!
+          ...project.metadata,
           agent_approved: true,
           agent_approved_at: new Date().toISOString(),
           requires_admin_review: true
@@ -199,6 +131,7 @@ const AgentDashboard = () => {
       showToast('Error approving project: ' + error.message, 'error')
     }
   };
+
   const handleSendToAdmin = async (projectId) => {
     try {
       await approveProject(projectId, {
@@ -210,10 +143,11 @@ const AgentDashboard = () => {
       showToast('Error sending to admin: ' + error.message, 'error')
     }
   };
+
   const handleSendQuote = (project) => {
     setSendingQuote(true);
     setQuotationData({
-      customerName: project.customerName,
+      customerName: project.customerName || project.customername || project.customer_name,
       amount: project.value,
       project: project
     });
@@ -487,7 +421,7 @@ const AgentDashboard = () => {
           />
           <StatCard
             title="Total Value"
-            value={`₹${(myProjects.reduce((sum, p) => sum + p.value, 0) / 100000).toFixed(1)}L`}
+            value={`₹${(myProjects.reduce((sum, p) => sum + (p.value || 0), 0) / 100000).toFixed(1)}L`}
             icon={DollarSign}
             color="bg-purple-500"
             trend="+15%"
@@ -665,202 +599,216 @@ const AgentDashboard = () => {
                   )}
                 </div>
                 
-                {myProjects.map((project) => (
-                  <div key={project.id} className={`border border-gray-200 rounded-lg ${
-                    isMobileView ? 'p-4' : 'p-6'
-                  } ${isMobileView ? 'shadow-sm' : ''}`}>
-                    <div className={`flex items-start justify-between mb-4 ${
-                      isMobileView ? 'flex-col space-y-3' : ''
-                    }`}>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <h4 className={`font-medium text-gray-900 ${
-                            isMobileView ? 'text-base' : 'text-lg'
-                          }`}>
-                            {project.title}
-                          </h4>
-                          {project.priority && (
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(project.priority)}`}>
-                              {project.priority}
-                            </span>
-                          )}
-                        </div>
-                        <p className={`text-gray-600 mb-3 ${
-                          isMobileView ? 'text-sm' : ''
-                        }`}>
-                          {project.description}
-                        </p>
-                        
-                        {/* Progress Bar for Mobile */}
-                        {isMobileView && project.progress && (
-                          <div className="mb-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-gray-600">Progress</span>
-                              <span className="text-xs font-medium text-gray-900">{project.progress}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${project.progress}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        )}
-                        
-                        <div className={`flex items-center space-x-4 text-gray-500 ${
-                          isMobileView ? 'text-xs flex-wrap gap-2' : 'text-sm'
-                        }`}>
-                          <span className="flex items-center">
-                            <Users className="w-4 h-4 mr-1" />
-                            {project.customerName}
-                          </span>
-                          <span className="flex items-center">
-                            <MapPin className="w-4 h-4 mr-1" />
-                            {project.location}
-                          </span>
-                          <span className="flex items-center">
-                            <DollarSign className="w-4 h-4 mr-1" />
-                            ₹{project.value.toLocaleString()}
-                          </span>
-                          {project.type && (
-                            <span className="flex items-center">
-                              <Zap className="w-4 h-4 mr-1" />
-                              {project.type}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className={`flex items-center space-x-2 ${
-                        isMobileView ? 'w-full justify-between' : ''
+                {myProjects.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500 text-lg font-medium">No projects assigned</p>
+                    <p className="text-gray-400 text-sm mt-2">
+                      Projects assigned to you will appear here
+                    </p>
+                  </div>
+                ) : (
+                  myProjects.map((project) => (
+                    <div key={project.id} className={`border border-gray-200 rounded-lg ${
+                      isMobileView ? 'p-4' : 'p-6'
+                    } ${isMobileView ? 'shadow-sm' : ''}`}>
+                      <div className={`flex items-start justify-between mb-4 ${
+                        isMobileView ? 'flex-col space-y-3' : ''
                       }`}>
-                        <span className={`px-3 py-1 rounded-full font-medium ${
-                          isMobileView ? 'text-xs px-2 py-1' : 'text-xs'
-                        } ${
-                          project.status === PROJECT_STATUS.COMPLETED
-                            ? 'bg-green-100 text-green-800'
-                            : project.status === PROJECT_STATUS.IN_PROGRESS
-                            ? 'bg-blue-100 text-blue-800'
-                            : project.status === PROJECT_STATUS.APPROVED
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-yellow-100 text-yellow-800'
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <h4 className={`font-medium text-gray-900 ${
+                              isMobileView ? 'text-base' : 'text-lg'
+                            }`}>
+                              {project.title}
+                            </h4>
+                            {project.priority && (
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(project.priority)}`}>
+                                {project.priority}
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-gray-600 mb-3 ${
+                            isMobileView ? 'text-sm' : ''
+                          }`}>
+                            {project.description}
+                          </p>
+                          
+                          {/* Progress Bar for Mobile */}
+                          {isMobileView && project.progress && (
+                            <div className="mb-3">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs text-gray-600">Progress</span>
+                                <span className="text-xs font-medium text-gray-900">{project.progress}%</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${project.progress}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          <div className={`flex items-center space-x-4 text-gray-500 ${
+                            isMobileView ? 'text-xs flex-wrap gap-2' : 'text-sm'
+                          }`}>
+                            <span className="flex items-center">
+                              <Users className="w-4 h-4 mr-1" />
+                              {project.customerName || project.customername || project.customer_name || 'Unknown Customer'}
+                            </span>
+                            <span className="flex items-center">
+                              <MapPin className="w-4 h-4 mr-1" />
+                              {project.location}
+                            </span>
+                            <span className="flex items-center">
+                              <DollarSign className="w-4 h-4 mr-1" />
+                              ₹{(project.value || 0).toLocaleString()}
+                            </span>
+                            {project.type && (
+                              <span className="flex items-center">
+                                <Zap className="w-4 h-4 mr-1" />
+                                {project.type}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className={`flex items-center space-x-2 ${
+                          isMobileView ? 'w-full justify-between' : ''
                         }`}>
-                          {project.status.replace('_', ' ')}
-                        </span>
-                        {isMobileView && (
-                          <button className="text-green-600">
-                            <ChevronRight className="w-5 h-5" />
-                          </button>
-                        )}
+                          <span className={`px-3 py-1 rounded-full font-medium ${
+                            isMobileView ? 'text-xs px-2 py-1' : 'text-xs'
+                          } ${
+                            project.status === PROJECT_STATUS.COMPLETED
+                              ? 'bg-green-100 text-green-800'
+                              : project.status === PROJECT_STATUS.IN_PROGRESS
+                              ? 'bg-blue-100 text-blue-800'
+                              : project.status === PROJECT_STATUS.APPROVED
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {project.status?.replace('_', ' ') || 'pending'}
+                          </span>
+                          {isMobileView && (
+                            <button className="text-green-600">
+                              <ChevronRight className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className={`flex items-center space-x-3 ${
-                      isMobileView ? 'flex-col space-y-2 space-x-0' : ''
-                    }`}>
-                      <button
-                        onClick={() => handleSendQuote(project)}
-                        disabled={sendingQuote}
-                        className={`flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 ${
-                          isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
-                        }`}
-                      >
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        {sendingQuote ? 'Sending...' : 'Send Quote'}
-                      </button>
-                      
-                      <button
-                        onClick={() => setShowPDF(true)}
-                        className={`flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ${
-                          isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
-                        }`}
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        View Quote
-                      </button>
-                      
-                      {project.status === PROJECT_STATUS.APPROVED && (
+                      <div className={`flex items-center space-x-3 ${
+                        isMobileView ? 'flex-col space-y-2 space-x-0' : ''
+                      }`}>
                         <button
-                          onClick={() => handleUpdateProjectStatus(project.id, PROJECT_STATUS.IN_PROGRESS)}
+                          onClick={() => handleSendQuote(project)}
+                          disabled={sendingQuote}
+                          className={`flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 ${
+                            isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
+                          }`}
+                        >
+                          <MessageSquare className="w-4 h-4 mr-2" />
+                          {sendingQuote ? 'Sending...' : 'Send Quote'}
+                        </button>
+                        
+                        <button
+                          onClick={() => setShowPDF(true)}
                           className={`flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ${
                             isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
                           }`}
                         >
-                          <Clock className="w-4 h-4 mr-2" />
-                          Start Project
+                          <FileText className="w-4 h-4 mr-2" />
+                          View Quote
                         </button>
-                      )}
-                      
-                      {project.status === PROJECT_STATUS.IN_PROGRESS && (
-                        <button
-                          onClick={() => handleUpdateProjectStatus(project.id, PROJECT_STATUS.COMPLETED)}
-                          className={`flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 ${
-                            isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
-                          }`}
-                        >
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Mark Complete
-                        </button>
-                      )}
-                      
-                      {!isMobileView && (
-                        <select
-                          value={project.pipeline_stage || 'lead_generated'}
-                          onChange={(e) => handleUpdatePipelineStage(project.id, e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        >
-                          <option value="lead_generated">Lead Generated</option>
-                          <option value="quotation_sent">Quotation Sent</option>
-                          <option value="bank_process">Bank Process</option>
-                          <option value="meter_applied">Meter Applied</option>
-                          <option value="ready_for_installation">Ready for Installation</option>
-                          <option value="installation_complete">Installation Complete</option>
-                          <option value="commissioned">Commissioned</option>
-                          <option value="active">Active</option>
-                        </select>
-                      )}
+                        
+                        {project.status === PROJECT_STATUS.APPROVED && (
+                          <button
+                            onClick={() => handleUpdateProjectStatus(project.id, PROJECT_STATUS.IN_PROGRESS)}
+                            className={`flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ${
+                              isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
+                            }`}
+                          >
+                            <Clock className="w-4 h-4 mr-2" />
+                            Start Project
+                          </button>
+                        )}
+                        
+                        {project.status === PROJECT_STATUS.IN_PROGRESS && (
+                          <button
+                            onClick={() => handleUpdateProjectStatus(project.id, PROJECT_STATUS.COMPLETED)}
+                            className={`flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 ${
+                              isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
+                            }`}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Mark Complete
+                          </button>
+                        )}
+                        
+                        {!isMobileView && (
+                          <select
+                            value={project.pipeline_stage || 'lead_generated'}
+                            onChange={(e) => handleUpdatePipelineStage(project.id, e.target.value)}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          >
+                            <option value="lead_generated">Lead Generated</option>
+                            <option value="quotation_sent">Quotation Sent</option>
+                            <option value="bank_process">Bank Process</option>
+                            <option value="meter_applied">Meter Applied</option>
+                            <option value="ready_for_installation">Ready for Installation</option>
+                            <option value="installation_complete">Installation Complete</option>
+                            <option value="commissioned">Commissioned</option>
+                            <option value="active">Active</option>
+                          </select>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             )}
-
-
-
-
 
             {activeTab === 'review' && (
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900">
                   Projects Pending Review ({pendingReviewProjects.length})
                 </h3>
-                {pendingReviewProjects.map(project => (
-                  <div key={project.id} className="border border-yellow-200 bg-yellow-50 rounded-lg p-4">
-                    {/* Project details */}
-                    <div className="flex justify-between items-center mt-4">
-                      {/* <button 
-                        onClick={() => handleApproveProject(project.id)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg"
-                      >
-                        Approve Project
-                      </button> */}
-                      <button onClick={() => handleApproveProject(project)}>
-                        Approve Project
-                      </button>
-                      <button 
-                        onClick={() => handleSendToAdmin(project.id)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-                      >
-                        Send to Admin
-                      </button>
-                    </div>
+                {pendingReviewProjects.length === 0 ? (
+                  <div className="text-center py-8">
+                    <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">No projects pending review</p>
                   </div>
-                ))}
+                ) : (
+                  pendingReviewProjects.map(project => (
+                    <div key={project.id} className="border border-yellow-200 bg-yellow-50 rounded-lg p-4">
+                      <div className="mb-4">
+                        <h4 className="font-medium text-gray-900">{project.title}</h4>
+                        <p className="text-gray-600 text-sm">{project.description}</p>
+                        <p className="text-gray-500 text-sm mt-1">
+                          Customer: {project.customerName || project.customername || 'Unknown'} | 
+                          Value: ₹{(project.value || 0).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <button 
+                          onClick={() => handleApproveProject(project)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                        >
+                          Approve Project
+                        </button>
+                        <button 
+                          onClick={() => handleSendToAdmin(project.id)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                          Send to Admin
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             )}
-
-
-
 
             {activeTab === 'customers' && (
               <div className="space-y-4">
@@ -892,7 +840,7 @@ const AgentDashboard = () => {
                             <h4 className={`font-medium text-gray-900 ${
                               isMobileView ? 'text-sm' : ''
                             }`}>
-                              {project.customerName}
+                              {project.customerName || project.customername || 'Unknown Customer'}
                             </h4>
                             <p className={`text-gray-600 ${
                               isMobileView ? 'text-xs' : 'text-sm'
@@ -959,6 +907,3 @@ const AgentDashboard = () => {
 };
 
 export default AgentDashboard;
-
-
-

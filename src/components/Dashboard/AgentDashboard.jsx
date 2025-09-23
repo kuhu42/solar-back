@@ -1,11 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useState , useEffect} from 'react';
 // import { useApp } from '../../context/AppContext.jsx';
 import { useApp } from '../../hooks/useApp.js'
 //import { PROJECT_STATUS, TASK_STATUS } from '../../types/index.js';
 import WhatsAppPreview from '../Common/WhatsAppPreview.jsx';
 import { PROJECT_STATUS, TASK_STATUS, PIPELINE_STAGES } from '../../types/index.js';
 import PDFPreview from '../Common/PDFPreview.jsx';
+import { dbService } from '../../lib/supabase.js';
+import { Edit3, ThumbsDown } from 'lucide-react';
 import { 
   MapPin, 
   Clock, 
@@ -33,7 +35,7 @@ import {
 } from 'lucide-react';
 
 const AgentDashboard = () => {
-  const { currentUser, projects, tasks, attendance, dispatch, showToast, approveProject } = useApp();
+  const { currentUser, projects, tasks, attendance, dispatch, showToast, approveProject, users, isLiveMode, dbService } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
   const [checkingIn, setCheckingIn] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -42,81 +44,132 @@ const AgentDashboard = () => {
   const [quotationData, setQuotationData] = useState(null);
   const [sendingQuote, setSendingQuote] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
-  // const pendingReviewProjects = projects.filter(p => 
-  //   p.status === PROJECT_STATUS.PENDINGAGENTREVIEW
-  // );
-  const pendingReviewProjects = projects.filter(p => 
-    p.status === 'pending' && 
-    p.metadata?.requires_agent_review === true
+// Replace the pendingReviewProjects filter in AgentDashboard.jsx
+// Replace the pendingReviewProjects filter in AgentDashboard.jsx
+const pendingReviewProjects = projects.filter(p => {
+  console.log(`Checking project ${p.id} (${p.title}):`, {
+    status: p.status,
+    pipeline_stage: p.pipeline_stage,
+    metadata: p.metadata,
+    created_by_role: p.metadata?.created_by_role
+  });
+  
+  // Exclude rejected projects
+  if (p.status === 'agent_rejected' || p.pipeline_stage === 'agent_rejected') {
+    console.log(`❌ Project ${p.id} is rejected, excluding from review queue`);
+    return false;
+  }
+  
+  // Since projects are getting 'pending' status instead of 'pending_agent_review',
+  // we need to check for freelancer-created projects with 'pending' status
+  const hasCorrectStatus = (
+    p.status === 'pending_agent_review' ||
+    (p.status === 'pending' && p.metadata?.created_by_role === 'freelancer')
   );
+  
+  // Check if it's from freelancer flow
+  const isFreelancerFlow = (
+    p.metadata?.created_by_role === 'freelancer' ||
+    p.metadata?.flow_stage === 'freelancer_created' ||
+    p.pipeline_stage === 'freelancer_created'
+  );
+  
+  // Check for the requires_agent_review flag
+  const requiresReview = (
+    p.metadata?.requires_agent_review === true ||
+    p.metadata?.requires_agent_review === 'true'
+  );
+  
+  // Show project if it's from freelancer and needs review (and not rejected)
+  const shouldShow = hasCorrectStatus && isFreelancerFlow && requiresReview;
+  
+  if (shouldShow) {
+    console.log(`✅ Project ${p.id} "${p.title}" will show in review queue`);
+  }
+  
+  return shouldShow;
+});
 
-  // Demo project data
-  const demoProjects = [
-    {
-      id: 'proj-001',
-      title: 'Mumbai Bandra West Solar Installation',
-      description: '5kW rooftop solar system with net metering',
-      customerName: 'Rajesh Sharma',
-      location: 'Bandra West, Mumbai',
-      value: 325000,
-      status: PROJECT_STATUS.IN_PROGRESS,
-      pipeline_stage: 'ready_for_installation',
-      assignedTo: currentUser?.id,
-      priority: 'high',
-      progress: 75,
-      type: 'Residential'
-    },
-    {
-      id: 'proj-002', 
-      title: 'Pune Koramangala Commercial Solar',
-      description: '15kW commercial solar setup with battery backup',
-      customerName: 'Tech Solutions Pvt Ltd',
-      location: 'Koramangala, Pune',
-      value: 875000,
-      status: PROJECT_STATUS.APPROVED,
-      pipeline_stage: 'bank_process',
-      assignedTo: currentUser?.id,
-      priority: 'medium',
-      progress: 45,
-      type: 'Commercial'
-    },
-    {
-      id: 'proj-003',
-      title: 'Delhi NCR Gurgaon Residential',
-      description: '8kW solar system with smart monitoring',
-      customerName: 'Priya Mehta',
-      location: 'Sector 47, Gurgaon',
-      value: 520000,
-      status: PROJECT_STATUS.PENDING,
-      pipeline_stage: 'quotation_sent',
-      assignedTo: currentUser?.id,
-      priority: 'low',
-      progress: 25,
-      type: 'Residential'
-    },
-    {
-      id: 'proj-004',
-      title: 'Bangalore HSR Layout Solar',
-      description: '6kW rooftop installation with grid tie',
-      customerName: 'Suresh Kumar',
-      location: 'HSR Layout, Bangalore',
-      value: 385000,
-      status: PROJECT_STATUS.COMPLETED,
-      pipeline_stage: 'active',
-      assignedTo: currentUser?.id,
-      priority: 'high',
-      progress: 100,
-      type: 'Residential'
+console.log('Filtered pending review projects:', pendingReviewProjects.length);
+const [showEnhanceProject, setShowEnhanceProject] = useState(false);
+const [enhancingProject, setEnhancingProject] = useState(null);
+const [enhanceForm, setEnhanceForm] = useState({
+  title: '',
+  value: '',
+  description: '',
+  type: '',
+  customerId: '',
+  location: '',
+  pincode: ''
+});
+console.log('All projects:', projects);
+// Add this right after the pendingReviewProjects filter
+console.log('Sample project structure:', projects[0]);
+console.log('Projects with pending_agent_review status:', 
+  projects.filter(p => p.status === 'pending_agent_review')
+);
+console.log('Projects with requires_agent_review metadata:', 
+  projects.filter(p => p.metadata?.requires_agent_review === true)
+);
+console.log('All project statuses:', projects.map(p => ({ id: p.id, status: p.status, metadata: p.metadata })));
+console.log('Current user:', currentUser);
+// Add this useEffect in AgentDashboard.jsx
+useEffect(() => {
+  const loadLiveProjects = async () => {
+    if (isLiveMode && dbService?.isAvailable()) {
+      try {
+        const liveProjects = await dbService.getProjects();
+        dispatch({ type: 'SET_PROJECTS', payload: liveProjects });
+      } catch (error) {
+        console.error('Failed to load live projects:', error);
+      }
     }
-  ];
+  };
+  
+  loadLiveProjects();
+}, [isLiveMode, dispatch]); // Add missing dependencies
 
-  const myProjects = demoProjects.length > 0 ? demoProjects : projects.filter(p => p.assignedTo === currentUser?.id);
-  const myTasks = tasks.filter(t => t.assignedTo === currentUser?.id);
+ const myProjects = projects.filter(p => p.assigned_to === currentUser?.id);
+  const myTasks = tasks.filter(t => t.assigned_to === currentUser?.id);
   const todayAttendance = attendance.find(a => 
     a.userId === currentUser?.id && 
     a.date === new Date().toISOString().split('T')[0]
   );
+const handleSubmitEnhancedProject = async (e) => {
+  e.preventDefault();
+  
+  try {
+    const enhancedData = {
+      title: enhanceForm.title,
+      value: parseFloat(enhanceForm.value) || 0,
+      description: enhanceForm.description,
+      type: enhanceForm.type,
+      customer_id: enhanceForm.customerId,
+      location: enhanceForm.location,
+      pincode: enhanceForm.pincode,
+      status: 'pending_admin_review',
+      pipeline_stage: 'agent_enhanced',
+      assigned_to: currentUser?.id,
+      assigned_to_name: currentUser?.name,
+      metadata: {
+        ...enhancingProject.metadata,
+        agent_enhanced: true,
+        agent_enhanced_at: new Date().toISOString(),
+        agent_id: currentUser?.id,
+        agent_name: currentUser?.name,
+        requires_admin_review: true,
+        flow_stage: 'agent_enhanced'
+      }
+    };
 
+    await approveProject(enhancingProject.id, enhancedData);
+    showToast('Project enhanced and sent to admin for approval!', 'success');
+    setShowEnhanceProject(false);
+    setEnhancingProject(null);
+  } catch (error) {
+    showToast('Error enhancing project: ' + error.message, 'error');
+  }
+};
   const handleCheckIn = () => {
     setCheckingIn(true);
     
@@ -158,6 +211,36 @@ const AgentDashboard = () => {
     }
   };
  
+const handleEnhanceProject = (project) => {
+  setEnhancingProject(project);
+  setEnhanceForm({
+    title: project.title || '',
+    value: project.value || '',
+    description: project.description || '',
+    type: project.type || '',
+    customerId: project.customer_id || '',
+    location: project.location || '',
+    pincode: project.pincode || ''
+  });
+  setShowEnhanceProject(true);
+};
+const handleRejectProject = async (projectId) => {
+  if (confirm('Are you sure you want to reject this project?')) {
+    try {
+      await approveProject(projectId, {
+        status: 'agent_rejected',
+        pipeline_stage: 'agent_rejected',
+        metadata: {
+          agent_rejected_by: currentUser?.id,
+          agent_rejected_at: new Date().toISOString()
+        }
+      });
+      showToast('Project rejected successfully');
+    } catch (error) {
+      showToast('Error rejecting project: ' + error.message, 'error');
+    }
+  }
+};
 
   // const handleApproveProject = async (projectId) => {
   //   try {
@@ -213,7 +296,7 @@ const AgentDashboard = () => {
   const handleSendQuote = (project) => {
     setSendingQuote(true);
     setQuotationData({
-      customerName: project.customerName,
+      customer_name: project.customer_name,
       amount: project.value,
       project: project
     });
@@ -712,7 +795,7 @@ const AgentDashboard = () => {
                         }`}>
                           <span className="flex items-center">
                             <Users className="w-4 h-4 mr-1" />
-                            {project.customerName}
+                            {project.customer_name}
                           </span>
                           <span className="flex items-center">
                             <MapPin className="w-4 h-4 mr-1" />
@@ -830,34 +913,68 @@ const AgentDashboard = () => {
 
 
             {activeTab === 'review' && (
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Projects Pending Review ({pendingReviewProjects.length})
-                </h3>
-                {pendingReviewProjects.map(project => (
-                  <div key={project.id} className="border border-yellow-200 bg-yellow-50 rounded-lg p-4">
-                    {/* Project details */}
-                    <div className="flex justify-between items-center mt-4">
-                      {/* <button 
-                        onClick={() => handleApproveProject(project.id)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg"
-                      >
-                        Approve Project
-                      </button> */}
-                      <button onClick={() => handleApproveProject(project)}>
-                        Approve Project
-                      </button>
-                      <button 
-                        onClick={() => handleSendToAdmin(project.id)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg"
-                      >
-                        Send to Admin
-                      </button>
-                    </div>
-                  </div>
-                ))}
+  <div className="space-y-4">
+    <h3 className="text-lg font-semibold text-gray-900">Projects from Freelancers ({pendingReviewProjects.length})</h3>
+    {pendingReviewProjects.map((project) => (
+      <div key={project.id} className="border border-orange-200 rounded-lg p-6 bg-orange-50">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <div className="flex items-center space-x-3 mb-2">
+              <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
+              <div className="flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                From Freelancer: {project.metadata?.freelancer_name || 'Unknown'}
               </div>
-            )}
+            </div>
+            <p className="text-gray-600 mt-1">{project.description}</p>
+            <div className="grid grid-cols-2 gap-4 mt-3 text-sm">
+              <div>
+                <span className="font-medium text-gray-700">Customer:</span> {project.customer_name}
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Phone:</span> {project.customer_phone}
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Location:</span> {project.location}
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Pincode:</span> {project.pincode}
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Type:</span> {project.type}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button
+            onClick={() => handleEnhanceProject(project)}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+          >
+            <Edit3 className="w-4 h-4 mr-2" />
+            Enhance & Submit
+          </button>
+          
+          <button
+            onClick={() => handleRejectProject(project.id)}
+            className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+          >
+            <ThumbsDown className="w-4 h-4 mr-2" />
+            Reject
+          </button>
+        </div>
+      </div>
+    ))}
+    
+    {pendingReviewProjects.length === 0 && (
+      <div className="text-center py-8">
+        <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <h4 className="font-medium text-gray-900 mb-2">No Projects Pending Review</h4>
+        <p className="text-gray-600">All freelancer projects have been reviewed.</p>
+      </div>
+    )}
+  </div>
+)}
 
 
 
@@ -892,7 +1009,7 @@ const AgentDashboard = () => {
                             <h4 className={`font-medium text-gray-900 ${
                               isMobileView ? 'text-sm' : ''
                             }`}>
-                              {project.customerName}
+                              {project.customer_name}
                             </h4>
                             <p className={`text-gray-600 ${
                               isMobileView ? 'text-xs' : 'text-sm'
@@ -931,16 +1048,152 @@ const AgentDashboard = () => {
 
       {/* Mobile Bottom Navigation */}
       {isMobileView && <MobileBottomNav />}
+{/* Project Enhancement Modal */}
+{showEnhanceProject && enhancingProject && (
+  <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-screen overflow-y-auto">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Enhance Project Details</h3>
+      
+      <form onSubmit={handleSubmitEnhancedProject} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Project Title *
+            </label>
+            <input
+              type="text"
+              value={enhanceForm.title}
+              onChange={(e) => setEnhanceForm({...enhanceForm, title: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Project Value (₹) *
+            </label>
+            <input
+              type="number"
+              value={enhanceForm.value}
+              onChange={(e) => setEnhanceForm({...enhanceForm, value: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              min="0"
+            />
+          </div>
+        </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Description *
+          </label>
+          <textarea
+            value={enhanceForm.description}
+            onChange={(e) => setEnhanceForm({...enhanceForm, description: e.target.value})}
+            rows="3"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Project Type *
+            </label>
+            <select
+              value={enhanceForm.type}
+              onChange={(e) => setEnhanceForm({...enhanceForm, type: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            >
+              <option value="">Select Type</option>
+              <option value="solar">Solar Installation</option>
+              <option value="wind">Wind Installation</option>
+              <option value="hybrid">Hybrid System</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Select Customer *
+            </label>
+            <select
+              value={enhanceForm.customerId}
+              onChange={(e) => setEnhanceForm({...enhanceForm, customerId: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            >
+              <option value="">Select Customer</option>
+              {users.filter(u => u.role === 'customer' && u.status === 'active').map(customer => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name} - {customer.email}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Location *
+            </label>
+            <input
+              type="text"
+              value={enhanceForm.location}
+              onChange={(e) => setEnhanceForm({...enhanceForm, location: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Pincode *
+            </label>
+            <input
+              type="text"
+              value={enhanceForm.pincode}
+              onChange={(e) => setEnhanceForm({...enhanceForm, pincode: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <button
+            type="button"
+            onClick={() => {
+              setShowEnhanceProject(false);
+              setEnhancingProject(null);
+            }}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Submit to Admin
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
       {/* Modals */}
       <WhatsAppPreview
         isOpen={showWhatsApp}
         onClose={() => {
           setShowWhatsApp(false);
-          showToast(`Quotation sent to ${quotationData?.customerName} via WhatsApp!`);
+          showToast(`Quotation sent to ${quotationData?.customer_name} via WhatsApp!`);
         }}
         type="quotation"
-        customerName={quotationData?.customerName}
+        customer_name={quotationData?.customer_name}
         amount={quotationData?.amount}
       />
 
@@ -949,12 +1202,13 @@ const AgentDashboard = () => {
         onClose={() => setShowPDF(false)}
         type="quotation"
         data={{
-          customerName: quotationData?.customerName || "Customer",
+          customer_name: quotationData?.customer_name || "Customer",
           amount: quotationData?.amount || 25000,
           quoteNumber: "QUO-2024-001"
         }}
       />
     </div>
+    
   );
 };
 

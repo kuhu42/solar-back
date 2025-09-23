@@ -1,5 +1,3 @@
-
-
 import { supabase, dbService } from './supabase.js';
 
 export const authService = {
@@ -8,7 +6,7 @@ export const authService = {
     return supabase && typeof supabase.auth !== 'undefined';
   },
 
-  // Sign up with email and password - ✅ FIXED to create database profile
+  // Sign up with email and password - âœ… FIXED to create database profile
   async signUp(email, password, userData) {
     try {
       // Create auth user first
@@ -28,7 +26,7 @@ export const authService = {
 
       if (error) throw error;
 
-      // ✅ CREATE DATABASE PROFILE USING YOUR EXISTING METHOD
+      // âœ… CREATE DATABASE PROFILE USING YOUR EXISTING METHOD
       if (data.user) {
         const profileData = {
           id: data.user.id, // Use auth user ID
@@ -44,10 +42,10 @@ export const authService = {
         // Call your existing createUserProfile method
         try {
           const profile = await dbService.createUserProfile(profileData);
-          console.log('✅ User profile created in database:', profile);
+          console.log('âœ… User profile created in database:', profile);
           return { ...data, profile };
         } catch (profileError) {
-          console.error('❌ Error creating user profile:', profileError);
+          console.error('âŒ Error creating user profile:', profileError);
           // Don't throw error here, auth user is already created
         }
       }

@@ -7,6 +7,7 @@ import TranslatedText from '../TranslatedText.jsx';
 import LanguageSwitcher from '../../components/LanguageSwitcher.jsx';
 import ProjectPipeline from '../Common/ProjectPipeline.jsx';
 import GPSMap from '../Common/GPSMap.jsx';
+import TeamsDisplay from '../Common/TeamsDisplay.jsx';
 import ModeToggle from '../Common/ModeToggle.jsx';
 //import TeamsDisplay from '../Common/TeamsDisplay.jsx';
 import { PROJECT_STATUS, PIPELINE_STAGES, USER_STATUS, INVENTORY_STATUS } from '../../types/index.js';
@@ -85,13 +86,11 @@ const CompanyDashboard = () => {
     type: 'solar'
   });
 
-  // Filter projects for admin review (both flows)
-  const pendingAdminReview = projects.filter(p => {
-    const isPendingStatus = p.status === PROJECT_STATUS.PENDINGADMINREVIEW;
-    const hasAdminFlag = p.metadata?.requires_admin_review === true;
-    
-    return isPendingStatus || hasAdminFlag;
-  });
+ const pendingAdminReview = projects.filter(p => 
+  p.status === 'pending_admin_review' && 
+  p.metadata?.requires_admin_review === true &&
+  p.metadata?.agent_enhanced === true
+);
 
   const pendingUsers = users.filter(u => u.status === USER_STATUS.PENDING);
   const activeProjects = projects.filter(p => p.status === PROJECT_STATUS.IN_PROGRESS);
@@ -144,25 +143,27 @@ const CompanyDashboard = () => {
   };
 
   // Admin approval for both project flows
-  const handleAdminApprove = async (project) => {
-    try {
-      await approveProject(project.id, {
-        status: PROJECT_STATUS.APPROVED,
-        pipeline_stage: PIPELINE_STAGES.APPROVED,
-        installation_approved: true,
-        metadata: {
-          ...project.metadata,
-          admin_approved: true,
-          admin_approved_at: new Date().toISOString(),
-          fully_approved: true,
-          requires_admin_review: false
-        }
-      });
-      showToast('Project given final approval!', 'success');
-    } catch (error) {
-      showToast('Error giving final approval: ' + error.message, 'error');
-    }
-  };
+const handleAdminApprove = async (project) => {
+  try {
+    await approveProject(project.id, {
+      status: 'approved',
+      pipeline_stage: 'approved',
+      installation_approved: true,
+      metadata: {
+        ...project.metadata,
+        admin_approved: true,
+        admin_approved_at: new Date().toISOString(),
+        fully_approved: true,
+        requires_admin_review: false,
+        ready_for_installer_assignment: true,
+        flow_stage: 'admin_approved'
+      }
+    });
+    showToast('Project approved! You can now assign an installer.', 'success');
+  } catch (error) {
+    showToast('Error approving project: ' + error.message, 'error');
+  }
+};
 
   const handleAdminReject = async (projectId) => {
     try {
@@ -339,31 +340,35 @@ const CompanyDashboard = () => {
     }
   };
 
-  // Flow #1: Installer assignment
-  const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
-    const installer = availableInstallers.find(i => i.id === installerId);
-    
-    if (!installer) {
-      showToast('Installer not found', 'error');
-      return;
-    }
+const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
+  const installer = availableInstallers.find(i => i.id === installerId);
+  
+  if (!installer) {
+    showToast('Installer not found', 'error');
+    return;
+  }
 
-    try {
-      await assignInstallerToProject(projectId, installerId, installer.name);
-      
-      await updateProject(projectId, {
-        pipeline_stage: 'ready_for_installation',
-        installer_assigned: true
-      });
-      
-      showToast(`Installer ${installer.name} assigned successfully!`);
-    } catch (error) {
-      showToast('Error assigning installer: ' + error.message, 'error');
-    }
+  try {
+    await assignInstallerToProject(projectId, installerId, installer.name);
     
-    setShowAssignInstaller(false);
-    setSelectedProject(null);
-  };
+    await updateProject(projectId, {
+      pipeline_stage: 'installer_assigned',
+      installer_assigned: true,
+      status: 'in_progress',
+      metadata: {
+        installer_assigned_at: new Date().toISOString(),
+        flow_stage: 'installer_assigned'
+      }
+    });
+    
+    showToast(`Installer ${installer.name} assigned successfully! Project is now active.`);
+  } catch (error) {
+    showToast('Error assigning installer: ' + error.message, 'error');
+  }
+  
+  setShowAssignInstaller(false);
+  setSelectedProject(null);
+};
 
   const handleDeactivateUser = async (user) => {
     if (confirm(`Are you sure you want to deactivate ${user.name}?`)) {
@@ -475,7 +480,7 @@ const CompanyDashboard = () => {
         />
         <StatCard
           title={t('totalRevenue')}
-          value={`₹${totalRevenue.toLocaleString()}`}
+          value={`â‚¹${totalRevenue.toLocaleString()}`}
           icon={DollarSign}
           color="bg-purple-500"
           subtitle={t('fromCompletedProjects')}
@@ -486,7 +491,7 @@ const CompanyDashboard = () => {
           value={inventoryStats.total}
           icon={Package}
           color="bg-green-500"
-          subtitle={`₹${inventoryStats.totalValue.toLocaleString()} ${t('totalValue')}`}
+          subtitle={`â‚¹${inventoryStats.totalValue.toLocaleString()} ${t('totalValue')}`}
         />
       </div>
 
@@ -635,7 +640,7 @@ const CompanyDashboard = () => {
                 </div>
                 <div className="bg-purple-50 rounded-lg p-4">
                   <h4 className="font-medium text-purple-900">{t('inventoryValue')}</h4>
-                  <p className="text-2xl font-bold text-purple-600 mt-2">₹{inventoryStats.totalValue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-purple-600 mt-2">â‚¹{inventoryStats.totalValue.toLocaleString()}</p>
                   <p className="text-sm text-purple-700">{inventoryStats.total} items</p>
                 </div>
                 <div className="bg-orange-50 rounded-lg p-4">
@@ -679,293 +684,252 @@ const CompanyDashboard = () => {
               </div>
             </div>
           )}
-
-          {activeTab === 'admin-review' && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Projects Pending Admin Review</h3>
-              {pendingAdminReview.map((project) => (
-                <div key={project.id} className="border border-orange-200 rounded-lg p-6 bg-orange-50">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
-                        <div className="flex items-center px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          Admin Review Required
-                        </div>
-                      </div>
-                      <p className="text-gray-600 mt-1">{project.description}</p>
-                      <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                        <span className="flex items-center">
-                          <Users className="w-4 h-4 mr-1" />
-                          Customer: {project.customer_name || project.customerName || 'Not assigned'}
-                        </span>
-                        <span className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-1" />
-                          {project.location}
-                        </span>
-                        <span className="flex items-center">
-                          <DollarSign className="w-4 h-4 mr-1" />
-                          ₹{project.value?.toLocaleString() || '0'}
-                        </span>
-                      </div>
-                      <div className="mt-2 text-sm">
-                        <span className="text-blue-600">Agent: {project.agent_name || project.assigned_to_name || 'Unknown'}</span>
-                        {project.freelancer_name && (
-                          <span className="text-green-600 ml-4">Freelancer: {project.freelancer_name}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    <button
-                      onClick={() => handleEditProjectAsAdmin(project)}
-                      className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                    >
-                      <Edit3 className="w-4 h-4 mr-2" />
-                      Edit Project
-                    </button>
-                    
-                    <button
-                      onClick={() => handleEditCustomerAsAdmin(project)}
-                      className="flex items-center px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
-                    >
-                      <Users className="w-4 h-4 mr-2" />
-                      Edit Customer
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        const customer = users.find(u => 
-                          (u.id === project.customer_id || u.id === project.customerId) && 
-                          u.role === 'customer'
-                        );
-                        setShowCustomerDetails(customer);
-                      }}
-                      className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      View Details
-                    </button>
-                    
-                    <div className="flex items-center space-x-2 ml-auto">
-                      <button
-                        onClick={() => handleAdminReject(project.id)}
-                        className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
-                      >
-                        <ThumbsDown className="w-4 h-4 mr-2" />
-                        Reject
-                      </button>
-                      
-                      <button
-                        onClick={() => handleAdminApprove(project)}
-                        className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                      >
-                        <ThumbsUp className="w-4 h-4 mr-2" />
-                        Approve Project
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Show assign installer button if project is approved */}
-                  {project.status === 'approved' && !project.installer_assigned && (
-                    <div className="mt-4 pt-4 border-t border-orange-200">
-                      <button
-                        onClick={() => {
-                          setSelectedProject(project);
-                          setShowAssignInstaller(true);
-                        }}
-                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                      >
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Assign Installer
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-              
-              {pendingAdminReview.length === 0 && (
-                <div className="text-center py-8">
-                  <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h4 className="font-medium text-gray-900 mb-2">No Projects Pending Review</h4>
-                  <p className="text-gray-600">All submitted projects have been reviewed.</p>
-                </div>
-              )}
+{activeTab === 'admin-review' && (
+  <div className="space-y-4">
+    <h3 className="text-lg font-semibold text-gray-900">Projects Enhanced by Agents ({pendingAdminReview.length})</h3>
+    {pendingAdminReview.map((project) => (
+      <div key={project.id} className="border border-orange-200 rounded-lg p-6 bg-orange-50">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <div className="flex items-center space-x-3 mb-2">
+              <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
+              <div className="flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                Enhanced by Agent: {project.metadata?.agent_name || 'Unknown'}
+              </div>
+              <div className="flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                From Freelancer: {project.metadata?.freelancer_name || 'Unknown'}
+              </div>
             </div>
-          )}
+            <p className="text-gray-600 mt-1">{project.description}</p>
+            
+            {/* Project Details Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3 text-sm bg-white p-4 rounded-lg">
+              <div>
+                <span className="font-medium text-gray-700">Customer:</span>
+                <p>{project.customer_name}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Phone:</span>
+                <p>{project.customer_phone}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Project Value:</span>
+                <p className="font-bold text-green-600">â‚¹{project.value?.toLocaleString() || '0'}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Location:</span>
+                <p>{project.location}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Pincode:</span>
+                <p>{project.pincode}</p>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700">Type:</span>
+                <p className="capitalize">{project.type}</p>
+              </div>
+            </div>
+            
+            {/* Timeline */}
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs">
+              <div className="font-medium text-gray-700 mb-2">Project Timeline:</div>
+              <div className="space-y-1 text-gray-600">
+                <div>Created by: {project.metadata?.freelancer_name} on {new Date(project.created_at).toLocaleDateString()}</div>
+                <div>Enhanced by: {project.metadata?.agent_name} on {new Date(project.metadata?.agent_enhanced_at).toLocaleDateString()}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button
+            onClick={() => {
+              const customer = users.find(u => u.id === project.customer_id);
+              setShowCustomerDetails(customer);
+            }}
+            className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+          >
+            <Eye className="w-4 h-4 mr-2" />
+            View Customer Details
+          </button>
+          
+          <div className="flex items-center space-x-2 ml-auto">
+            <button
+              onClick={() => handleAdminReject(project.id)}
+              className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+            >
+              <ThumbsDown className="w-4 h-4 mr-2" />
+              Reject
+            </button>
+            
+            <button
+              onClick={() => handleAdminApprove(project)}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+            >
+              <ThumbsUp className="w-4 h-4 mr-2" />
+              Approve Project
+            </button>
+          </div>
+        </div>
+
+        {/* Show assign installer button if project is approved */}
+        {project.status === 'approved' && !project.installer_assigned && (
+          <div className="mt-4 pt-4 border-t border-orange-200">
+            <button
+              onClick={() => {
+                setSelectedProject(project);
+                setShowAssignInstaller(true);
+              }}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Assign Installer
+            </button>
+          </div>
+        )}
+
+        {/* Show installer assigned status */}
+        {project.installer_assigned && (
+          <div className="mt-4 pt-4 border-t border-orange-200">
+            <div className="flex items-center text-sm">
+              <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+              <span className="text-green-700 font-medium">
+                Installer Assigned: {project.installer_name}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    ))}
+    
+    {pendingAdminReview.length === 0 && (
+      <div className="text-center py-8">
+        <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <h4 className="font-medium text-gray-900 mb-2">No Projects Pending Review</h4>
+        <p className="text-gray-600">All agent-enhanced projects have been reviewed.</p>
+      </div>
+    )}
+  </div>
+)}
 
           {activeTab === 'teams' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <UserCheck className="h-6 w-6 text-blue-600" />
-                    Location-Based Teams
-                  </h2>
-                  <div className="text-sm text-gray-600">
-                    Teams are automatically created based on pincode regions and roles
-                  </div>
+  <div className="space-y-6">
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <UserCheck className="h-6 w-6 text-blue-600" />
+          Location-Based Teams
+        </h2>
+        <div className="text-sm text-gray-600">
+          Teams are automatically created based on pincode regions and roles
+        </div>
+      </div>
+      <TeamsDisplay />
+    </div>
+  </div>
+)}
+
+       {activeTab === 'projects' && (
+  <div className="space-y-6">
+    <div className="flex items-center justify-between">
+      <h3 className="text-lg font-semibold text-gray-900">Project Management</h3>
+      <button
+        onClick={() => setShowCreateProject(true)}
+        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        Create New Project
+      </button>
+    </div>
+    
+    {/* Approved Projects Section */}
+    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+      <h4 className="font-medium text-green-900 mb-3">
+        Approved Projects ({projects.filter(p => p.status === 'approved' || p.status === 'in_progress').length})
+      </h4>
+      <div className="grid gap-4">
+        {projects.filter(p => p.status === 'approved' || p.status === 'in_progress').map(project => (
+          <div key={project.id} className="bg-white border border-green-200 rounded-lg p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex-1">
+                <div className="flex items-center space-x-2 mb-2">
+                  <h5 className="font-medium text-gray-900">{project.title}</h5>
+                  {project.installer_assigned && (
+                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                      Installer: {project.installer_name}
+                    </span>
+                  )}
+                  {project.installation_complete && (
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                      Installation Complete
+                    </span>
+                  )}
                 </div>
-                <TeamsDisplay />
+                <div className="text-sm text-gray-600 grid grid-cols-2 gap-2">
+                  <div>Customer: {project.customer_name}</div>
+                  <div>Value: â‚¹{project.value?.toLocaleString()}</div>
+                  <div>Location: {project.location}</div>
+                  <div>Status: {project.status}</div>
+                </div>
               </div>
             </div>
-          )}
-
-          {activeTab === 'projects' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">Project Management</h3>
-                <button
-                  onClick={() => setShowCreateProject(true)}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create New Project
-                </button>
+            
+            {project.status === 'approved' && !project.installer_assigned && (
+              <button
+                onClick={() => {
+                  setSelectedProject(project);
+                  setShowAssignInstaller(true);
+                }}
+                className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+              >
+                Assign Installer
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+    
+{/* All Projects List */}
+    <div className="grid gap-6">
+      {projects.map(project => (
+        <div key={project.id} className="border border-gray-200 rounded-lg p-6">
+          {/* Existing project content structure */}
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <div className="flex items-center space-x-3 mb-2">
+                <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
               </div>
-              
-              <div className="grid gap-6">
-                {projects.map(project => (
-                  <div key={project.id} className="border border-gray-200 rounded-lg p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
-                          {(project.installation_complete || project.installationComplete) && (
-                            <div className="flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Installation Complete
-                            </div>
-                          )}
-                          {project.installer_assigned && (
-                            <div className="flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                              <UserPlus className="w-3 h-3 mr-1" />
-                              Installer Assigned
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-gray-600 mt-1">{project.description}</p>
-                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                          <span className="flex items-center">
-                            <Users className="w-4 h-4 mr-1" />
-                            Customer: {project.customer_name || 'Not assigned'} 
-                            (Ref: {project.customer_ref_number || 'Not set'})
-                          </span>
-                          <span className="flex items-center">
-                            <Users className="w-4 h-4 mr-1" />
-                            Agent: {project.assigned_to_name || 'Not assigned'}
-                          </span>
-                          <span className="flex items-center">
-                            <MapPin className="w-4 h-4 mr-1" />
-                            {project.location}
-                          </span>
-                          <span className="flex items-center">
-                            <DollarSign className="w-4 h-4 mr-1" />
-                            ₹{project.value?.toLocaleString() || '0'}
-                          </span>
-                        </div>
-                        {project.installer_name && (
-                          <div className="mt-2 text-sm text-blue-600">
-                            Installer: {project.installer_name}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => {
-                            const customer = users.find(u => 
-                              (u.id === project.customer_id || u.id === project.customerId) && 
-                              u.role === 'customer'
-                            );
-                            setShowCustomerDetails(customer);
-                          }}
-                          className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
-                          title="View Customer Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          project.status === PROJECT_STATUS.COMPLETED
-                            ? 'bg-green-100 text-green-800'
-                            : project.status === PROJECT_STATUS.IN_PROGRESS
-                            ? 'bg-blue-100 text-blue-800'
-                            : project.status === 'approved'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {project.status?.replace('_', ' ') || 'Unknown'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Assigned Equipment */}
-                    {project.serial_numbers && project.serial_numbers.length > 0 && (
-                      <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                        <h5 className="font-medium text-gray-900 mb-2">Assigned Equipment:</h5>
-                        <div className="flex flex-wrap gap-2">
-                          {project.serial_numbers.map(serial => {
-                            const item = inventory.find(i => i.serialNumber === serial || i.serial_number === serial);
-                            return (
-                              <div key={serial} className="flex items-center space-x-2 bg-white border border-gray-200 rounded px-3 py-1">
-                                <Package className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm font-mono">{serial}</span>
-                                {item && (
-                                  <span className={`w-2 h-2 rounded-full ${
-                                    item.status === INVENTORY_STATUS.INSTALLED ? 'bg-green-500' :
-                                    item.status === INVENTORY_STATUS.ASSIGNED ? 'bg-blue-500' : 'bg-gray-400'
-                                  }`}></span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Action buttons for approved projects */}
-                    {project.status === 'approved' && !project.installer_assigned && (
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <button
-                          onClick={() => {
-                            setSelectedProject(project);
-                            setShowAssignInstaller(true);
-                          }}
-                          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                        >
-                          <UserPlus className="w-4 h-4 mr-2" />
-                          Assign Installer
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Pipeline Stage */}
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Pipeline Stage:
-                      </label>
-                      <select
-                        value={project.pipelineStage || 'lead_generated'}
-                        onChange={(e) => handleUpdatePipelineStage(project.id, e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      >
-                        <option value="lead_generated">Lead Generated</option>
-                        <option value="quotation_sent">Quotation Sent</option>
-                        <option value="bank_process">Bank Process</option>
-                        <option value="meter_applied">Meter Applied</option>
-                        <option value="ready_for_installation">Ready for Installation</option>
-                        <option value="installation_complete">Installation Complete</option>
-                        <option value="commissioned">Commissioned</option>
-                        <option value="active">Active</option>
-                      </select>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {/* Add other project details as needed */}
             </div>
-          )}
+          </div>
+          
+          {/* Pipeline Stage */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Pipeline Stage:
+            </label>
+            <select
+              value={project.pipelineStage || 'lead_generated'}
+              onChange={(e) => handleUpdatePipelineStage(project.id, e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            >
+              <option value="lead_generated">Lead Generated</option>
+              <option value="quotation_sent">Quotation Sent</option>
+              <option value="bank_process">Bank Process</option>
+              <option value="meter_applied">Meter Applied</option>
+              <option value="ready_for_installation">Ready for Installation</option>
+              <option value="installation_complete">Installation Complete</option>
+              <option value="commissioned">Commissioned</option>
+              <option value="active">Active</option>
+            </select>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
           {activeTab === 'inventory' && (
             <InventoryManager />
@@ -1281,10 +1245,10 @@ const CompanyDashboard = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="font-medium text-blue-900 mb-2">User Management Info:</h4>
                 <div className="text-sm text-blue-700 space-y-1">
-                  <p>• <strong>Active:</strong> User can login and access the system</p>
-                  <p>• <strong>Inactive:</strong> User account is disabled but data is preserved</p>
-                  <p>• <strong>Pending:</strong> Professional registration awaiting approval</p>
-                  <p>• <strong>Rejected:</strong> Registration was denied</p>
+                  <p>â€¢ <strong>Active:</strong> User can login and access the system</p>
+                  <p>â€¢ <strong>Inactive:</strong> User account is disabled but data is preserved</p>
+                  <p>â€¢ <strong>Pending:</strong> Professional registration awaiting approval</p>
+                  <p>â€¢ <strong>Rejected:</strong> Registration was denied</p>
                 </div>
               </div>
             </div>
@@ -1326,7 +1290,7 @@ const CompanyDashboard = () => {
                     <div className="flex justify-between items-center">
                       <span className="text-gray-600">Average Project Value</span>
                       <span className="font-bold text-blue-600">
-                        ₹{projects.length > 0 ? Math.round(projects.reduce((sum, p) => sum + (p.value || 0), 0) / projects.length).toLocaleString() : 0}
+                        â‚¹{projects.length > 0 ? Math.round(projects.reduce((sum, p) => sum + (p.value || 0), 0) / projects.length).toLocaleString() : 0}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -1375,7 +1339,7 @@ const CompanyDashboard = () => {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Project Value (₹) *
+                    Project Value (â‚¹) *
                   </label>
                   <input
                     type="number"
@@ -1555,7 +1519,7 @@ const CompanyDashboard = () => {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Project Value (₹) *
+                    Project Value (â‚¹) *
                   </label>
                   <input
                     type="number"

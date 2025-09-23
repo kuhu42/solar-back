@@ -608,72 +608,78 @@ export function AppProvider({ children }) {
 
   // ===== PROJECT MANAGEMENT METHODS =====
 
-  // Enhanced createProject to support both flows
-  const createProject = async (projectData) => {
-    if (state.isLiveMode) {
-      try {
-        // Determine project source based on current user role
-        const source = state.currentUser?.role === 'company' ? PROJECT_SOURCE.ADMIN : 
-                      state.currentUser?.role === 'freelancer' ? PROJECT_SOURCE.FREELANCER :
-                      PROJECT_SOURCE.AGENT;
+// In your AppContext.jsx, find the createProject function and update it like this:
 
-        // Set initial status and pipeline stage based on source
-        let initialStatus, initialPipelineStage, metadata = {};
+const createProject = async (projectData) => {
+  if (state.isLiveMode) {
+    try {
+      console.log('Creating project with data:', projectData);
+      
+      // Determine project source based on current user role
+      const source = state.currentUser?.role === 'company' ? PROJECT_SOURCE.ADMIN : 
+                    state.currentUser?.role === 'freelancer' ? PROJECT_SOURCE.FREELANCER :
+                    PROJECT_SOURCE.AGENT;
 
-        if (source === PROJECT_SOURCE.ADMIN) {
-          // Flow #1: Admin creates project
-          initialStatus = PROJECT_STATUS.ADMIN_CREATED;
-          initialPipelineStage = PIPELINE_STAGES.ADMIN_CREATED;
-          metadata = {
-            created_by_role: 'company',
-            project_source: source,
-            flow_type: 'admin_direct'
-          };
-        } else if (source === PROJECT_SOURCE.FREELANCER) {
-          // Flow #2: Freelancer creates project
-          initialStatus = 'pending';
-          initialPipelineStage = PIPELINE_STAGES.FREELANCER_CREATED;
-          metadata = {
+      // For freelancer projects, ensure the correct status is set
+      let enhancedProjectData = { ...projectData };
+      
+      if (source === PROJECT_SOURCE.FREELANCER) {
+        // Override any status issues for freelancer projects
+        enhancedProjectData = {
+          ...projectData,
+          status: 'pending_agent_review', // Force this specific status
+          pipeline_stage: 'freelancer_created',
+          metadata: {
             created_by_role: 'freelancer',
             freelancer_id: state.currentUser?.id,
             freelancer_name: state.currentUser?.name,
             requires_agent_review: true,
             project_source: source,
-            flow_type: 'freelancer_to_admin'
-          };
-        }
-
-        const enhancedProjectData = {
-          ...projectData,
-          status: initialStatus,
-          pipeline_stage: initialPipelineStage,
-          metadata: {
-            ...metadata,
+            flow_type: 'freelancer_to_admin',
             ...projectData.metadata
           }
         };
-
-        const newProject = await dbService.createProject(enhancedProjectData);
-        return newProject;
-      } catch (error) {
-        console.error('Error creating project:', error);
-        throw error;
+      } else if (source === PROJECT_SOURCE.ADMIN) {
+        // Admin created projects
+        enhancedProjectData = {
+          ...projectData,
+          status: 'admin_created',
+          pipeline_stage: 'admin_created',
+          metadata: {
+            created_by_role: 'company',
+            project_source: source,
+            flow_type: 'admin_direct',
+            ...projectData.metadata
+          }
+        };
       }
-    } else {
-      // Demo mode
-      const project = {
-        id: `proj-${Date.now()}`,
-        ...projectData,
-        createdAt: new Date().toISOString(),
-        metadata: {
-          project_source: state.currentUser?.role === 'company' ? PROJECT_SOURCE.ADMIN : PROJECT_SOURCE.FREELANCER,
-          ...projectData.metadata
-        }
-      };
-      dispatch({ type: 'ADD_PROJECT', payload: project });
-      return project;
+
+      console.log('Enhanced project data being sent to DB:', enhancedProjectData);
+      
+      const newProject = await dbService.createProject(enhancedProjectData);
+      
+      console.log('Project created in DB with status:', newProject.status);
+      
+      return newProject;
+    } catch (error) {
+      console.error('Error creating project:', error);
+      throw error;
     }
-  };
+  } else {
+    // Demo mode
+    const project = {
+      id: `proj-${Date.now()}`,
+      ...projectData,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        project_source: state.currentUser?.role === 'company' ? PROJECT_SOURCE.ADMIN : PROJECT_SOURCE.FREELANCER,
+        ...projectData.metadata
+      }
+    };
+    dispatch({ type: 'ADD_PROJECT', payload: project });
+    return project;
+  }
+};
 
   const approveProject = async (projectId, updates) => {
     if (state.isLiveMode) {

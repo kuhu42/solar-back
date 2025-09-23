@@ -12,23 +12,61 @@ import {
   Upload,
   FileText,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Phone
 } from 'lucide-react';
 
 const InstallerDashboard = () => {
-  const { currentUser, tasks, attendance, inventory, dispatch, showToast } = useApp();
+  const { currentUser, projects, tasks, attendance, inventory, dispatch, showToast, approveProject } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
   const [checkingIn, setCheckingIn] = useState(false);
   const [scannerInput, setScannerInput] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [completionNotes, setCompletionNotes] = useState('');
+  const [showCompleteInstallation, setShowCompleteInstallation] = useState(false);
+const [completingProject, setCompletingProject] = useState(null);
+const [installationNotes, setInstallationNotes] = useState('');
 
   const myTasks = tasks.filter(t => t.assignedTo === currentUser?.id);
   const todayAttendance = attendance.find(a => 
     a.userId === currentUser?.id && 
     a.date === new Date().toISOString().split('T')[0]
   );
+const myProjects = projects.filter(p => 
+  p.installer_id === currentUser?.id && 
+  (p.status === 'in_progress' || p.status === 'completed')
+);
+const handleCompleteInstallation = (project) => {
+  setCompletingProject(project);
+  setInstallationNotes('');
+  setShowCompleteInstallation(true);
+};
 
+const handleSubmitInstallationComplete = async (e) => {
+  e.preventDefault();
+  
+  try {
+    await approveProject(completingProject.id, {
+      status: 'completed',
+      pipeline_stage: 'installation_complete',
+      installation_complete: true,
+      completion_date: new Date().toISOString().split('T')[0],
+      installer_notes: installationNotes,
+      metadata: {
+        ...completingProject.metadata,
+        installation_completed_at: new Date().toISOString(),
+        flow_stage: 'installation_complete'
+      }
+    });
+
+    showToast('Installation marked as complete successfully!');
+    setShowCompleteInstallation(false);
+    setCompletingProject(null);
+    setInstallationNotes('');
+  } catch (error) {
+    showToast('Error completing installation: ' + error.message, 'error');
+  }
+};
   const handleCheckIn = () => {
     setCheckingIn(true);
     
@@ -223,15 +261,15 @@ const InstallerDashboard = () => {
               My Tasks
             </button>
             <button
-              onClick={() => setActiveTab('scanner')}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                activeTab === 'scanner'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              Scanner
-            </button>
+  onClick={() => setActiveTab('projects')}
+  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+    activeTab === 'projects'
+      ? 'bg-blue-100 text-blue-700'
+      : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+  }`}
+>
+  My Projects ({myProjects.length})
+</button>
           </div>
         </div>
 
@@ -500,6 +538,186 @@ const InstallerDashboard = () => {
           )}
         </div>
       </div>
+      {activeTab === 'projects' && (
+  <div className="space-y-4">
+    <h3 className="text-lg font-semibold text-gray-900">My Installation Projects</h3>
+    
+    {myProjects.length === 0 && (
+      <div className="text-center py-8">
+        <Wrench className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <h4 className="font-medium text-gray-900 mb-2">No Projects Assigned</h4>
+        <p className="text-gray-600">Projects assigned to you will appear here.</p>
+      </div>
+    )}
+    
+    <div className="grid gap-4">
+      {myProjects.map((project) => (
+        <div key={project.id} className="border border-gray-200 rounded-lg p-6 bg-white">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <div className="flex items-center space-x-3 mb-2">
+                <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  project.status === 'completed'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-blue-100 text-blue-800'
+                }`}>
+                  {project.status === 'completed' ? 'Installation Complete' : 'In Progress'}
+                </span>
+              </div>
+              
+              <p className="text-gray-600 mt-1">{project.description}</p>
+              
+              {/* Project Details Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3 text-sm bg-gray-50 p-3 rounded-lg">
+                <div>
+                  <span className="font-medium text-gray-700">Customer:</span>
+                  <p>{project.customer_name}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Phone:</span>
+                  <p>{project.customer_phone}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Location:</span>
+                  <p>{project.location}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Pincode:</span>
+                  <p>{project.pincode}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Project Value:</span>
+                  <p className="font-bold text-green-600">₹{project.value?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700">Type:</span>
+                  <p className="capitalize">{project.type}</p>
+                </div>
+              </div>
+
+              {/* Project Timeline */}
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg text-xs">
+                <div className="font-medium text-blue-900 mb-2">Project Flow:</div>
+                <div className="space-y-1 text-blue-700">
+                  <div>Created by: {project.metadata?.freelancer_name}</div>
+                  <div>Enhanced by: {project.metadata?.agent_name}</div>
+                  <div>Approved by Admin</div>
+                  <div>Assigned to: {currentUser?.name}</div>
+                  {project.completion_date && (
+                    <div className="font-medium">Completed on: {project.completion_date}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Installation Notes */}
+              {project.installer_notes && (
+                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="font-medium text-green-900 text-sm mb-1">Installation Notes:</div>
+                  <p className="text-green-700 text-sm">{project.installer_notes}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center space-x-3 mt-4">
+            {project.status === 'in_progress' && (
+              <button
+                onClick={() => handleCompleteInstallation(project)}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Mark Installation Complete
+              </button>
+            )}
+            
+            <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+              <Camera className="w-4 h-4 mr-2" />
+              Add Photos
+            </button>
+            
+            <button
+              onClick={() => {
+                const customerPhone = project.customer_phone;
+                if (customerPhone) {
+                  window.open(`tel:${customerPhone}`, '_self');
+                }
+              }}
+              className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+            >
+              <Phone className="w-4 h-4 mr-2" />
+              Call Customer
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+{/* Installation Completion Modal */}
+{showCompleteInstallation && completingProject && (
+  <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-lg max-w-md w-full p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Complete Installation</h3>
+      
+      <div className="space-y-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <h4 className="font-medium text-blue-900">{completingProject.title}</h4>
+          <p className="text-sm text-blue-700">Customer: {completingProject.customer_name}</p>
+          <p className="text-sm text-blue-700">Location: {completingProject.location}</p>
+        </div>
+        
+        <form onSubmit={handleSubmitInstallationComplete} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Installation Notes
+            </label>
+            <textarea
+              value={installationNotes}
+              onChange={(e) => setInstallationNotes(e.target.value)}
+              rows={4}
+              placeholder="Add notes about the completed installation..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="flex items-start">
+              <AlertCircle className="w-5 h-5 text-green-600 mt-0.5 mr-2 flex-shrink-0" />
+              <div className="text-sm text-green-800">
+                <p className="font-medium">Before marking complete:</p>
+                <ul className="mt-1 list-disc list-inside space-y-1">
+                  <li>Verify all equipment is properly installed</li>
+                  <li>Test system functionality</li>
+                  <li>Take completion photos</li>
+                  <li>Get customer sign-off</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-3 pt-4">
+            <button
+              type="submit"
+              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700"
+            >
+              Mark Installation Complete
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCompleteInstallation(false)}
+              className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Task Completion Modal */}
       {selectedTask && (

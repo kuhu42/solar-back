@@ -27,14 +27,14 @@ const FreelancerDashboard = () => {
   const [showAddLead, setShowAddLead] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false)
   const [newProject, setNewProject] = useState({
-    title: '',
-    description: '',
-    location: '',
-    value: 0,
-    customerId: '',
-    customerName: '',
-    selectedEquipment: []
-  });
+  title: '',
+  description: '',
+  location: '',
+  pincode: '',
+  customerName: '',
+  customerPhone: '',
+  type: 'solar'
+});
 
   const [newLead, setNewLead] = useState({
     customerName: '',
@@ -125,47 +125,48 @@ const FreelancerDashboard = () => {
   //     showToast('Error creating project: ' + error.message, 'error')
   //   }
   // };
-  const handleCreateProject = async (e) => {
-    e.preventDefault()
-    try {
-      const projectData = {
-        title: newProject.title,
-        description: newProject.description,
-        location: newProject.location,
-        value: parseFloat(newProject.value) || 0,
-        customer_name: newProject.customerName,
-        type: 'solar',  // ✅ REQUIRED field - you need to add this to your form or set default
-        status: 'pending',  // ✅ Use your database enum values
-        pipeline_stage: 'lead_generated',  // ✅ Use your database enum values  
-        assigned_to: currentUser?.id,  // ✅ Assign to freelancer (matches DB schema)
-        assigned_to_name: currentUser?.name,  // ✅ Freelancer name
-        // Add metadata for tracking
-        metadata: {
-          created_by_role: 'freelancer',
-          freelancer_id: currentUser?.id,
-          freelancer_name: currentUser?.name,
-          requires_agent_review: true
-        }
+const handleCreateProject = async (e) => {
+  e.preventDefault()
+  try {
+    const projectData = {
+      title: newProject.title,
+      description: newProject.description,
+      location: newProject.location,
+      pincode: newProject.pincode,
+      customer_name: newProject.customerName,
+      customer_phone: newProject.customerPhone,
+      type: newProject.type,
+      status: 'pending_agent_review',
+      pipeline_stage: 'freelancer_created',
+      assigned_to: null, // Will be assigned by agent
+      assigned_to_name: null,
+      metadata: {
+        created_by_role: 'freelancer',
+        freelancer_id: currentUser?.id,
+        freelancer_name: currentUser?.name,
+        requires_agent_review: true,
+        flow_stage: 'freelancer_created'
       }
-      
-      await createProject(projectData)
-      showToast('Project created and sent for agent review!', 'success')
-      setShowCreateProject(false)
-      
-      // Reset form
-      setNewProject({
-        title: '',
-        description: '',
-        location: '',
-        value: 0,
-        customerId: '',
-        customerName: '',
-        selectedEquipment: []
-      })
-    } catch (error) {
-      showToast('Error creating project: ' + error.message, 'error')
     }
-  };
+    
+    await createProject(projectData)
+    showToast('Project created and sent to agents for review!', 'success')
+    setShowCreateProject(false)
+    
+    // Reset form
+    setNewProject({
+      title: '',
+      description: '',
+      location: '',
+      pincode: '',
+      customerName: '',
+      customerPhone: '',
+      type: 'solar'
+    })
+  } catch (error) {
+    showToast('Error creating project: ' + error.message, 'error')
+  }
+};
 
 
   const StatCard = ({ title, value, icon: Icon, color, subtitle }) => (
@@ -379,93 +380,110 @@ const FreelancerDashboard = () => {
               </div>
               {/* Project creation modal - you'll need to add this */}
               {/* Add this right before the closing </div> of the component */}
-              {showCreateProject && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-                  <div className="bg-white rounded-lg max-w-md w-full p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Project</h3>
-                    <form onSubmit={handleCreateProject} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Project Title</label>
-                        <input
-                          type="text"
-                          value={newProject.title}
-                          onChange={(e) => setNewProject({...newProject, title: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Project Type</label>
-                        <select
-                          value={newProject.type || 'solar'}
-                          onChange={(e) => setNewProject({...newProject, type: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          required
-                        >
-                          <option value="solar">Solar Installation</option>
-                          <option value="wind">Wind Installation</option>
-                          <option value="hybrid">Hybrid System</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                        <textarea
-                          value={newProject.description}
-                          onChange={(e) => setNewProject({...newProject, description: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          rows="3"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                        <input
-                          type="text"
-                          value={newProject.location}
-                          onChange={(e) => setNewProject({...newProject, location: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Project Value</label>
-                        <input
-                          type="number"
-                          value={newProject.value}
-                          onChange={(e) => setNewProject({...newProject, value: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                        <input
-                          type="text"
-                          value={newProject.customerName}
-                          onChange={(e) => setNewProject({...newProject, customerName: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                          required
-                        />
-                      </div>
-                      <div className="flex items-center space-x-3 pt-4">
-                        <button
-                          type="submit"
-                          className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700"
-                        >
-                          Create Project
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowCreateProject(false)}
-                          className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
+             {showCreateProject && (
+  <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-lg max-w-md w-full p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Project</h3>
+      <form onSubmit={handleCreateProject} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Project Title *</label>
+          <input
+            type="text"
+            value={newProject.title}
+            onChange={(e) => setNewProject({...newProject, title: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            required
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Project Type *</label>
+          <select
+            value={newProject.type || 'solar'}
+            onChange={(e) => setNewProject({...newProject, type: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            required
+          >
+            <option value="solar">Solar Installation</option>
+            <option value="wind">Wind Installation</option>
+            <option value="hybrid">Hybrid System</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+          <textarea
+            value={newProject.description}
+            onChange={(e) => setNewProject({...newProject, description: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            rows="3"
+            required
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
+          <input
+            type="text"
+            value={newProject.location}
+            onChange={(e) => setNewProject({...newProject, location: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            required
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Pincode *</label>
+          <input
+            type="text"
+            value={newProject.pincode}
+            onChange={(e) => setNewProject({...newProject, pincode: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            required
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name *</label>
+          <input
+            type="text"
+            value={newProject.customerName}
+            onChange={(e) => setNewProject({...newProject, customerName: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            required
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Customer Phone *</label>
+          <input
+            type="tel"
+            value={newProject.customerPhone}
+            onChange={(e) => setNewProject({...newProject, customerPhone: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            required
+          />
+        </div>
+        
+        <div className="flex items-center space-x-3 pt-4">
+          <button
+            type="submit"
+            className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700"
+          >
+            Create Project
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCreateProject(false)}
+            className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
 
             </div>
           )}

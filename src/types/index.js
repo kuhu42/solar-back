@@ -30,6 +30,8 @@ export const PROJECT_STATUS = {
   AGENT_APPROVED: 'agent_approved',
   PENDING_ADMIN_REVIEW: 'pending_admin_review',
   ADMIN_REJECTED: 'admin_rejected',
+  AGENTAPPROVED: 'agent_approved',
+PENDINGADMINREVIEW: 'pending_admin_review',
   
   // Flow #1: Admin creates directly
   ADMIN_CREATED: 'admin_created',

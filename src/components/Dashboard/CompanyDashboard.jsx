@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { useApp } from '../../hooks/useApp.js'
+import { useApp } from '../../hooks/useApp.js';
+import { Bell } from 'lucide-react';
+
 import { dbService } from '../../lib/supabase.js';
 import InventoryManager from '../Common/InventoryManager.jsx';
 import PerformanceChart from '../Common/PerformanceChart.jsx';
@@ -73,6 +75,8 @@ const CompanyDashboard = () => {
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
   const [userFilter, setUserFilter] = useState('all');
+  const [showNotifications, setShowNotifications] = useState(false)
+
 
   const [createProjectForm, setCreateProjectForm] = useState({
     title: '',
@@ -410,6 +414,161 @@ const CompanyDashboard = () => {
     showToast('Project stage updated!');
   };
 
+
+
+  // Notification Panel Component
+    const NotificationPanel = () => {
+      const totalNotifications = pendingAdminReview.length + pendingUsers.length
+      
+      return (
+        <div className="fixed inset-0 z-50" style={{ pointerEvents: showNotifications ? 'auto' : 'none' }}>
+          {/* Backdrop */}
+          {showNotifications && (
+            <div 
+              className="absolute inset-0 bg-black bg-opacity-25" 
+              onClick={() => setShowNotifications(false)}
+            />
+          )}
+          
+         {/* Side Panel */}
+<div className={`fixed top-0 right-0 h-full w-80 bg-white-500 shadow-xl transform transition-transform duration-300 ease-in-out ${
+  showNotifications ? 'translate-x-0' : 'translate-x-full'
+}`}>
+
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                <button
+                  onClick={() => setShowNotifications(false)}
+                  className="p-1 hover:bg-gray-100 rounded-lg"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+              
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Admin Review Notifications */}
+                {pendingAdminReview.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <AlertTriangle className="w-5 h-5 text-orange-500" />
+                      <h4 className="font-medium text-gray-900">Projects Awaiting Review</h4>
+                      <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-medium">
+                        {pendingAdminReview.length}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {pendingAdminReview.slice(0, 3).map(project => (
+                        <div key={project.id} className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{project.title}</p>
+                              <p className="text-xs text-gray-600 mt-1">Customer: {project.customername || 'Not assigned'}</p>
+                              <p className="text-xs text-gray-500">Value: ₹{project.value?.toLocaleString() || '0'}</p>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex space-x-2">
+                            <button
+                              onClick={() => {
+                                setActiveTab('admin-review')
+                                setShowNotifications(false)
+                              }}
+                              className="text-xs bg-orange-600 text-white px-2 py-1 rounded hover:bg-orange-700"
+                            >
+                              Review
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {pendingAdminReview.length > 3 && (
+                        <button
+                          onClick={() => {
+                            setActiveTab('admin-review')
+                            setShowNotifications(false)
+                          }}
+                          className="w-full text-xs text-orange-600 hover:text-orange-800 py-2"
+                        >
+                          View all {pendingAdminReview.length} projects
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* User Approval Notifications */}
+                {pendingUsers.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <UserCheck className="w-5 h-5 text-yellow-500" />
+                      <h4 className="font-medium text-gray-900">Users Pending Approval</h4>
+                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+                        {pendingUsers.length}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {pendingUsers.slice(0, 3).map(user => (
+                        <div key={user.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                              <p className="text-xs text-gray-600 mt-1">{user.email}</p>
+                              <p className="text-xs text-gray-500">Role: {user.requestedRole || user.role || 'Not specified'}</p>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex space-x-2">
+                            <button
+                              onClick={() => handleApproveUser(user.id, user.requestedRole || user.role || 'agent')}
+                              className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleRejectUser(user.id)}
+                              className="text-xs bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {pendingUsers.length > 3 && (
+                        <button
+                          onClick={() => {
+                            setActiveTab('users')
+                            setShowNotifications(false)
+                          }}
+                          className="w-full text-xs text-yellow-600 hover:text-yellow-800 py-2"
+                        >
+                          View all {pendingUsers.length} users
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Empty State */}
+                {pendingAdminReview.length === 0 && pendingUsers.length === 0 && (
+                  <div className="text-center py-8">
+                    <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500 text-sm">No pending notifications</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    };
+
+  
+
+
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between">
@@ -447,6 +606,26 @@ const CompanyDashboard = () => {
         </div>
         <div className="flex items-center space-x-4">
           <LanguageSwitcher />
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                console.log('Bell clicked!');
+                console.log('Current showNotifications:', showNotifications);
+                setShowNotifications(!showNotifications);
+              }}
+              className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Bell className="w-6 h-6" />
+              {(pendingAdminReview.length + pendingUsers.length) > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center font-medium">
+                  {Math.min(pendingAdminReview.length + pendingUsers.length, 99)}
+                </span>
+              )}
+            </button>
+          </div>
+
           <ModeToggle 
             isLiveMode={isLiveMode} 
             onToggle={toggleMode}
@@ -1351,7 +1530,7 @@ const CompanyDashboard = () => {
           )}
         </div>
       </div>
-
+      <NotificationPanel />
       {/* Create Project Modal (Flow #1) */}
       {showCreateProject && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -1521,12 +1700,12 @@ const CompanyDashboard = () => {
                   {t('cancel')}
                 </button>
                 <button 
-  type="button"  // Prevent form submission
-  onClick={handleCreateProject}  // Direct click handler
-  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
->
-  Create Project
-</button>
+                  type="button"  // Prevent form submission
+                  onClick={handleCreateProject}  // Direct click handler
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Create Project
+                </button>
 
               </div>
             </form>

@@ -2,6 +2,7 @@ import React, { createContext, useReducer, useEffect } from 'react';
 import { dbService, supabase } from '../lib/supabase.js';
 import { authService } from '../lib/auth.js';
 import { USER_STATUS, PROJECT_STATUS, PIPELINE_STAGES, PROJECT_SOURCE } from '../types/index.js';
+import { teamGroupingService } from '../lib/teamGroupingService.js';
 import { 
   mockUsers, 
   mockProjects, 
@@ -1134,41 +1135,225 @@ const createProject = async (projectData) => {
     alert(`${type.toUpperCase()}: ${message}`);
   };
 
-  const value = {
-    ...state,
-    dispatch,
-    toggleMode,
-    setCurrentUser,
-    logout,
-    loginDemo,
-    loginLive,
-    createDemoUsers,
+const value = {
+  ...state,
+  dispatch,
+  toggleMode,
+  setCurrentUser,
+  logout,
+  loginDemo,
+  loginLive,
+  createDemoUsers,
+  
+  // NEW: Registration method (this fixes the "register is not a function" error)
+  register: async (email, password, userData) => {
+    if (state.isLiveMode) {
+      try {
+        console.log('Registering user with data:', userData);
+        
+        // Use the auth service to register the user
+        const result = await authService.signUp(email, password, userData);
+        
+        if (result.user) {
+          console.log('Registration successful:', result.user);
+          
+          // If it's a professional (not customer or company), auto-assign to team
+          if (userData.role !== 'customer' && userData.role !== 'company' && userData.role !== 'middleman') {
+            try {
+              await teamGroupingService.assignUserToTeam(result.user.id, {
+                city: teamGroupingService.getCityFromPincode(userData.pincode),
+                role: userData.role,
+                pincode: userData.pincode
+              });
+            } catch (teamError) {
+              console.error('Team assignment failed (non-critical):', teamError);
+              // Don't throw - team assignment failure shouldn't break registration
+            }
+          }
+          
+          return result;
+        }
+        
+        throw new Error('Registration failed - no user returned');
+      } catch (error) {
+        console.error('Registration error:', error);
+        throw error;
+      }
+    } else {
+      // Demo mode - just add to state
+      const newUser = {
+        id: `user-${Date.now()}`,
+        ...userData,
+        created_at: new Date().toISOString()
+      };
+      
+      dispatch({ type: 'ADD_USER', payload: newUser });
+      return { user: newUser };
+    }
+  },
+
+  // Existing project management methods
+  createProject,
+  approveProject,
+  updateProject,
+  assignInstallerToProject,
+  markInstallationComplete,
+  createTask,
+  updateInventoryStatus,
+  
+  // Other existing methods
+  addLead,
+  updateLead,
+  addComplaint,
+  updateTask,
+  addAttendance,
+  updateAttendance,
+  updateUserStatus,
+  addInventoryItem,
+  updateInventoryItem,
+  uploadFile,
+  trackEvent,
+  showToast,
+  authService,
+  dbService,
+
+  // NEW: Team-related methods for the teams functionality
+  getTeamsByRole: async (role) => {
+    try {
+      if (state.isLiveMode) {
+        return await teamGroupingService.getTeamsByRole(role);
+      } else {
+        // Demo mode - create mock teams for testing
+        return createMockTeams(role);
+      }
+    } catch (error) {
+      console.error('Error getting teams by role:', error);
+      return [];
+    }
+  },
+
+  getUsersInSameLocation: async (pincode, role) => {
+    try {
+      if (state.isLiveMode) {
+        return await teamGroupingService.getUsersInLocation(pincode, role);
+      } else {
+        // Demo mode
+        return createMockLocationTeam(pincode, role);
+      }
+    } catch (error) {
+      console.error('Error getting users in location:', error);
+      return { teamName: 'Error', location: 'Unknown', members: [] };
+    }
+  },
+
+  refreshTeamData: async () => {
+    try {
+      if (state.isLiveMode) {
+        // Refresh user data to update teams
+        const users = await dbService.getUserProfiles();
+        dispatch({ type: 'SET_USERS', payload: users });
+        return true;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error refreshing team data:', error);
+      throw error;
+    }
+  },
+
+  // Get current user's team (computed property)
+  get userTeam() {
+    if (!state.currentUser || !state.currentUser.pincode || 
+        state.currentUser.role === 'customer' || state.currentUser.role === 'company') {
+      return null;
+    }
+
+    const city = teamGroupingService.getCityFromPincode(state.currentUser.pincode);
+    const teammates = state.users.filter(user => 
+      user.role === state.currentUser.role && 
+      user.pincode && 
+      teamGroupingService.getCityFromPincode(user.pincode) === city
+    );
+
+    return {
+      teamName: `${city} ${teamGroupingService.capitalizeRole(state.currentUser.role)}s`,
+      location: city,
+      members: teammates,
+      totalMembers: teammates.length
+    };
+  },
+
+  // Get team statistics (computed property)
+  get teamStats() {
+    const users = state.users.filter(u => 
+      u.role !== 'customer' && 
+      u.role !== 'company' && 
+      u.pincode && 
+      ['Delhi', 'Mumbai', 'Hyderabad', 'Bangalore'].includes(
+        teamGroupingService.getCityFromPincode(u.pincode)
+      )
+    );
     
-    // Project management (both flows)
-    createProject,
-    approveProject,
-    updateProject,
-    assignInstallerToProject,  // NEW: For Flow #1
-    markInstallationComplete,  // NEW: For Flow #1
-    createTask,               // NEW: For Flow #1
-    updateInventoryStatus,    // NEW: For Flow #1
-    
-    // Other methods
-    addLead,
-    updateLead,
-    addComplaint,
-    updateTask,
-    addAttendance,
-    updateAttendance,
-    updateUserStatus,
-    addInventoryItem,
-    updateInventoryItem,
-    uploadFile,
-    trackEvent,
-    showToast,
-    authService,
-    dbService
+    const teams = {};
+    users.forEach(user => {
+      const city = teamGroupingService.getCityFromPincode(user.pincode);
+      const teamKey = `${city}_${user.role}`;
+      if (!teams[teamKey]) teams[teamKey] = 0;
+      teams[teamKey]++;
+    });
+
+    return {
+      totalTeams: Object.keys(teams).length,
+      totalMembers: users.length,
+      byLocation: {
+        Delhi: users.filter(u => teamGroupingService.getCityFromPincode(u.pincode) === 'Delhi').length,
+        Mumbai: users.filter(u => teamGroupingService.getCityFromPincode(u.pincode) === 'Mumbai').length,
+        Hyderabad: users.filter(u => teamGroupingService.getCityFromPincode(u.pincode) === 'Hyderabad').length,
+        Bangalore: users.filter(u => teamGroupingService.getCityFromPincode(u.pincode) === 'Bangalore').length,
+      }
+    };
+  }
+};
+
+// Helper functions for demo mode (add these at the bottom of AppContext.jsx, before the closing brace)
+function createMockTeams(role) {
+  const cities = ['Delhi', 'Mumbai', 'Hyderabad', 'Bangalore'];
+  return cities.map(city => ({
+    id: `${city}_${role}`,
+    name: `${city} ${role.charAt(0).toUpperCase() + role.slice(1)}s`,
+    location: city,
+    role: role,
+    members: [],
+    totalMembers: Math.floor(Math.random() * 10) + 1,
+    activeMembers: Math.floor(Math.random() * 8) + 1,
+    pendingMembers: Math.floor(Math.random() * 3)
+  }));
+}
+
+function createMockLocationTeam(pincode, role) {
+  const city = teamGroupingService.getCityFromPincode(pincode);
+  return {
+    teamName: `${city} ${role.charAt(0).toUpperCase() + role.slice(1)}s`,
+    location: city,
+    role: role,
+    members: [
+      {
+        id: 'demo-1',
+        name: `Demo ${role} 1`,
+        email: `demo1@${role}.com`,
+        status: 'active',
+        pincode: pincode
+      },
+      {
+        id: 'demo-2', 
+        name: `Demo ${role} 2`,
+        email: `demo2@${role}.com`,
+        status: 'pending',
+        pincode: pincode
+      }
+    ]
   };
+}
 
   return (
     <AppContext.Provider value={value}>

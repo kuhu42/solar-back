@@ -54,18 +54,53 @@ export const dbService = {
   //   return data;
   // },
 
-  // ✅ Fix createUserProfile with better error handling
+// Update your createUserProfile method in supabase.js
+
+// Fix createUserProfile with better error handling and pincode support
+// Update your createUserProfile method in supabase.js
+
 async createUserProfile(userData) {
-  console.log('🔄 Creating profile with data:', userData);
+  console.log('📄 Creating profile with data:', userData);
+  
+  // Ensure all fields are properly mapped and not undefined
+  const profileData = {
+    id: userData.id,
+    email: userData.email,
+    name: userData.name,
+    phone: userData.phone || null,
+    role: userData.role || 'pending',
+    status: userData.status || 'pending',
+    pincode: userData.pincode || null, // ✅ Critical: Ensure pincode is included
+    address: userData.address || null, // ✅ Critical: Ensure address is included
+    location: userData.location || null,
+    education: userData.education || null,
+    bank_details: userData.bankDetails || null,
+    requested_role: userData.requestedRole || null,
+    // Customer-specific fields
+    customer_ref_number: userData.customerRefNumber || null,
+    // Add any other fields that should be stored
+    created_at: userData.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  // Remove any undefined values to avoid database errors
+  Object.keys(profileData).forEach(key => {
+    if (profileData[key] === undefined) {
+      delete profileData[key];
+    }
+  });
+
+  console.log('📄 Final profile data being inserted:', profileData);
   
   const { data, error } = await supabase
     .from('users')
-    .insert([userData])
+    .insert([profileData])
     .select()
-    .maybeSingle(); // ✅ Changed from .single() to .maybeSingle()
+    .maybeSingle();
   
   if (error) {
     console.error('❌ Profile creation failed:', error);
+    console.error('❌ Error details:', JSON.stringify(error, null, 2));
     throw error;
   }
   

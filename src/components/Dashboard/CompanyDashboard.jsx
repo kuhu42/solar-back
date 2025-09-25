@@ -813,20 +813,9 @@ const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
   </div>
 )}
 
-          {activeTab === 'teams' && (
+{activeTab === 'teams' && (
   <div className="space-y-6">
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <UserCheck className="h-6 w-6 text-blue-600" />
-          Location-Based Teams
-        </h2>
-        <div className="text-sm text-gray-600">
-          Teams are automatically created based on pincode regions and roles
-        </div>
-      </div>
-      <TeamsDisplay />
-    </div>
+    <TeamsDisplay />
   </div>
 )}
 

@@ -62,7 +62,7 @@ export const dbService = {
 async createUserProfile(userData) {
   console.log('📄 Creating profile with data:', userData);
   
-  // Ensure all fields are properly mapped and not undefined
+  // Map userData to actual database column names in 'users' table
   const profileData = {
     id: userData.id,
     email: userData.email,
@@ -70,30 +70,67 @@ async createUserProfile(userData) {
     phone: userData.phone || null,
     role: userData.role || 'pending',
     status: userData.status || 'pending',
-    pincode: userData.pincode || null, // ✅ Critical: Ensure pincode is included
-    address: userData.address || null, // ✅ Critical: Ensure address is included
+    
+    // ✅ These columns exist in users table
+    pincode: userData.pincode || null, // This should now work!
+    address: userData.address || null,
     location: userData.location || null,
     education: userData.education || null,
     bank_details: userData.bankDetails || null,
     requested_role: userData.requestedRole || null,
-    // Customer-specific fields
     customer_ref_number: userData.customerRefNumber || null,
-    // Add any other fields that should be stored
+    
+    // ✅ Store all customer-specific data in the customer_data JSONB column
+    customer_data: {
+      serviceNumber: userData.serviceNumber,
+      coordinates: userData.coordinates,
+      moduleType: userData.moduleType,
+      kwCapacity: userData.kwCapacity,
+      houseType: userData.houseType,
+      floors: userData.floors,
+      remarks: userData.remarks,
+      // Include any other customer-specific fields here
+    },
+    
+    // Standard timestamps
     created_at: userData.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
 
-  // Remove any undefined values to avoid database errors
+  // Remove null/undefined values except for pincode which we want to preserve
   Object.keys(profileData).forEach(key => {
-    if (profileData[key] === undefined) {
-      delete profileData[key];
+    if (profileData[key] === undefined || profileData[key] === '') {
+      // Don't delete pincode or address even if they're empty strings
+      if (key !== 'pincode' && key !== 'address') {
+        delete profileData[key];
+      }
     }
   });
 
-  console.log('📄 Final profile data being inserted:', profileData);
+  // Special validation for pincode - ensure it's preserved if valid
+  if (userData.pincode && userData.pincode.length === 6) {
+    profileData.pincode = userData.pincode;
+    console.log('📍 Pincode explicitly preserved:', profileData.pincode);
+  }
+
+  // Clean up customer_data object - remove undefined values
+  if (profileData.customer_data) {
+    Object.keys(profileData.customer_data).forEach(key => {
+      if (profileData.customer_data[key] === undefined || profileData.customer_data[key] === '') {
+        delete profileData.customer_data[key];
+      }
+    });
+    
+    // If customer_data is empty after cleanup, set to null
+    if (Object.keys(profileData.customer_data).length === 0) {
+      profileData.customer_data = null;
+    }
+  }
+
+  console.log('📄 Final profile data being inserted into USERS table:', profileData);
   
   const { data, error } = await supabase
-    .from('users')
+    .from('users') // ✅ Explicitly targeting the 'users' table
     .insert([profileData])
     .select()
     .maybeSingle();
@@ -104,22 +141,66 @@ async createUserProfile(userData) {
     throw error;
   }
   
-  console.log('✅ Profile created successfully:', data);
+  console.log('✅ Profile created successfully in users table:', data);
   return data;
 },
 
   // ✅ Update user profile (used for approvals and role changes)
-  async updateUserProfile(id, updates) {
-    const { data, error } = await supabase
-      .from('users')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
+ // In your supabase.js, update the updateUserProfile method:
+
+async updateUserProfile(id, updates) {
+  console.log('📝 Updating user profile for ID:', id);
+  console.log('📝 Update data:', updates);
+  
+  // Clean up the updates object
+  const cleanUpdates = {};
+  
+  Object.keys(updates).forEach(key => {
+    if (updates[key] !== undefined && updates[key] !== '') {
+      cleanUpdates[key] = updates[key];
+    }
+  });
+  
+  // Special handling for pincode - preserve it even if it's an empty string
+  if (updates.pincode !== undefined) {
+    cleanUpdates.pincode = updates.pincode;
+    console.log('📍 Pincode being updated to:', cleanUpdates.pincode);
+  }
+  
+  // Handle customer_data JSONB field
+  if (updates.customer_data) {
+    const customerData = {};
+    Object.keys(updates.customer_data).forEach(key => {
+      if (updates.customer_data[key] !== undefined && updates.customer_data[key] !== '') {
+        customerData[key] = updates.customer_data[key];
+      }
+    });
     
-    if (error) throw error;
-    return data;
-  },
+    if (Object.keys(customerData).length > 0) {
+      cleanUpdates.customer_data = customerData;
+    }
+  }
+  
+  // Add updated_at timestamp
+  cleanUpdates.updated_at = new Date().toISOString();
+  
+  console.log('📝 Final update data being sent:', cleanUpdates);
+  
+  const { data, error } = await supabase
+    .from('users')
+    .update(cleanUpdates)
+    .eq('id', id)
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('❌ Profile update failed:', error);
+    throw error;
+  }
+  
+  console.log('✅ Profile updated successfully:', data);
+  return data;
+},
 
   // Get user profile by email
   async getUserProfileByEmail(email) {

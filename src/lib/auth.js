@@ -11,6 +11,8 @@ export const authService = {
   // Sign up with email and password - FIXED to properly store pincode
 // Update your signUp method in auth.js with detailed logging
 
+// In your auth.js signUp method, replace the createUserProfile call with this:
+
 async signUp(email, password, userData) {
   try {
     console.log('🔍 Auth Service: signUp called with:', { email, userData });
@@ -22,7 +24,7 @@ async signUp(email, password, userData) {
 
     console.log('🔍 Pincode validation passed, creating auth user...');
 
-    // Create auth user first
+    // Create auth user first - this creates a record in the users table automatically
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -31,7 +33,7 @@ async signUp(email, password, userData) {
           name: userData.name,
           role: userData.role,
           phone: userData.phone,
-          pincode: userData.pincode,
+          pincode: userData.pincode, // This might not work, Supabase auth has limited metadata
           status: userData.status || 'pending',
           ...userData
         }
@@ -45,38 +47,36 @@ async signUp(email, password, userData) {
 
     console.log('🔍 Auth user created successfully:', data.user?.id);
 
-    // CREATE DATABASE PROFILE WITH ALL DATA INCLUDING PINCODE
+    // UPDATE the existing user record instead of inserting a new one
     if (data.user) {
-      const profileData = {
-        id: data.user.id,
-        email: data.user.email,
-        name: userData.name,
-        phone: userData.phone,
-        role: userData.role || 'pending',
-        status: userData.status || 'pending',
-        pincode: userData.pincode, // Critical: Include pincode here
-        address: userData.address, // Critical: Include address here
-        location: userData.pincode ? this.getCityFromPincode(userData.pincode) : null,
-        created_at: new Date().toISOString(),
-        // Include all other user data fields
-        education: userData.education,
-        bankDetails: userData.bankDetails,
-        requestedRole: userData.requestedRole,
-        serviceNumber: userData.serviceNumber,
-        coordinates: userData.coordinates,
-        moduleType: userData.moduleType,
-        kwCapacity: userData.kwCapacity,
-        houseType: userData.houseType,
-        floors: userData.floors,
-        remarks: userData.remarks,
-        customerRefNumber: userData.customerRefNumber
-      };
-
-      console.log('🔍 Creating database profile with data:', profileData);
-
+      console.log('🔍 Updating user profile with complete data...');
+      
       try {
-        const profile = await dbService.createUserProfile(profileData);
-        console.log('🔍 User profile created in database:', profile);
+        // Use updateUserProfile instead of createUserProfile
+        const profile = await dbService.updateUserProfile(data.user.id, {
+          name: userData.name,
+          phone: userData.phone,
+          role: userData.role || 'pending',
+          status: userData.status || 'pending',
+          pincode: userData.pincode, // This should now work!
+          address: userData.address,
+          location: userData.pincode ? this.getCityFromPincode(userData.pincode) : null,
+          education: userData.education,
+          bank_details: userData.bankDetails,
+          requested_role: userData.requestedRole,
+          customer_ref_number: userData.customerRefNumber,
+          customer_data: {
+            serviceNumber: userData.serviceNumber,
+            coordinates: userData.coordinates,
+            moduleType: userData.moduleType,
+            kwCapacity: userData.kwCapacity,
+            houseType: userData.houseType,
+            floors: userData.floors,
+            remarks: userData.remarks,
+          }
+        });
+        
+        console.log('🔍 User profile updated successfully:', profile);
         
         // Auto-assign to team based on pincode and role if it's a professional
         if (userData.pincode && userData.role !== 'customer' && userData.role !== 'company') {
@@ -91,8 +91,8 @@ async signUp(email, password, userData) {
         
         return { ...data, profile };
       } catch (profileError) {
-        console.error('🔍 Error creating user profile:', profileError);
-        throw new Error(`Profile creation failed: ${profileError.message}`);
+        console.error('🔍 Error updating user profile:', profileError);
+        throw new Error(`Profile update failed: ${profileError.message}`);
       }
     }
 

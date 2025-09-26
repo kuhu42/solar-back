@@ -129,7 +129,9 @@ useEffect(() => {
   loadLiveProjects();
 }, [isLiveMode, dispatch]); // Add missing dependencies
 
- const myProjects = projects.filter(p => p.assigned_to === currentUser?.id);
+ const myProjects = projects.filter(p => 
+  p.assigned_to === currentUser?.id || p.agent_id === currentUser?.id
+);
   const myTasks = tasks.filter(t => t.assigned_to === currentUser?.id);
   const todayAttendance = attendance.find(a => 
     a.userId === currentUser?.id && 

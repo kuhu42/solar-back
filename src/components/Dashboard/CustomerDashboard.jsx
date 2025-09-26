@@ -34,9 +34,9 @@ const CustomerDashboard = () => {
     serialNumber: ''
   });
 
-  const myProjects = projects.filter(p => p.customerId === currentUser?.id);
-  const myComplaints = complaints.filter(c => c.customerId === currentUser?.id);
-  const myInvoices = invoices.filter(i => i.customerId === currentUser?.id);
+  const myProjects = projects.filter(p => p.customer_id === currentUser?.id);
+  const myComplaints = complaints.filter(c => c.customer_id === currentUser?.id);
+  const myInvoices = invoices.filter(i => i.customer_id === currentUser?.id);
 
   // Show customer reference number prominently
   const customerRefNumber = currentUser?.customerRefNumber;
@@ -64,14 +64,14 @@ const CustomerDashboard = () => {
     e.preventDefault();
     
     const complaint = {
-      id: `comp-${Date.now()}`,
-      customerRefNumber: currentUser.customerRefNumber,
-      customerId: currentUser.id,
-      customerName: currentUser.name,
-      ...newComplaint,
-      status: COMPLAINT_STATUS.OPEN,
-      createdAt: new Date().toISOString().split('T')[0]
-    };
+  id: `comp-${Date.now()}`,
+  customerRefNumber: currentUser.customerRefNumber,
+  customer_id: currentUser.id,  // Changed from customerId
+  customer_name: currentUser.name,
+  ...newComplaint,
+  status: COMPLAINT_STATUS.OPEN,
+  createdAt: new Date().toISOString().split('T')[0]
+};
 
     dispatch({ type: 'ADD_COMPLAINT', payload: complaint });
     showToast('Complaint submitted successfully!');
@@ -212,7 +212,7 @@ const CustomerDashboard = () => {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Projects</h3>
                 <div className="space-y-3">
-                  {myProjects.slice(0, 3).map((project) => (
+                  {(myProjects || []).slice(0, 3).map((project) => (
                     <div key={project.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className={`w-3 h-3 rounded-full ${
@@ -276,7 +276,7 @@ const CustomerDashboard = () => {
               {/* Project Status Timeline */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Progress</h3>
-                {myProjects.map((project) => (
+                {(myProjects || []).map((project) => (
                   <div key={project.id} className="bg-gray-50 rounded-lg p-4 mb-4">
                     <h4 className="font-medium text-gray-900 mb-3">{project.title}</h4>
                     <div className="flex items-center space-x-2 overflow-x-auto pb-2">
@@ -354,7 +354,7 @@ const CustomerDashboard = () => {
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">My Projects</h3>
               <div className="grid gap-6">
-                {myProjects.map((project) => (
+                {myProjects && myProjects.length > 0 && myProjects.map((project) => (
                   <div key={project.id} className="border border-gray-200 rounded-lg p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
@@ -389,18 +389,18 @@ const CustomerDashboard = () => {
                     </div>
 
                     {/* Equipment Serial Numbers */}
-                    {project.serialNumbers.length > 0 && (
-                      <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                        <h5 className="font-medium text-gray-900 mb-2">Equipment Serial Numbers:</h5>
-                        <div className="flex flex-wrap gap-2">
-                          {project.serialNumbers.map((serial) => (
-                            <span key={serial} className="px-2 py-1 bg-white border border-gray-200 rounded text-sm font-mono">
-                              {serial}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+{project.serial_numbers && project.serial_numbers.length > 0 && (
+  <div className="bg-gray-50 rounded-lg p-4 mt-4">
+    <h5 className="font-medium text-gray-900 mb-2">Equipment Serial Numbers:</h5>
+    <div className="flex flex-wrap gap-2">
+      {project.serial_numbers.map((serial) => (
+        <span key={serial} className="px-2 py-1 bg-white border border-gray-200 rounded text-sm font-mono">
+          {serial}
+        </span>
+      ))}
+    </div>
+  </div>
+)}
 
                     <div className="flex items-center space-x-3 mt-4">
                       <button className="flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm">
@@ -450,8 +450,11 @@ const CustomerDashboard = () => {
                 <h4 className="font-medium text-gray-900 mb-4">My Equipment</h4>
                 <div className="grid gap-3">
                   {inventory.filter(item => 
-                    myProjects.some(project => project.serialNumbers.includes(item.serialNumber))
-                  ).map((item) => (
+  myProjects.some(project => {
+    const serialNumbers = project.serial_numbers || project.serialNumbers || [];
+    return Array.isArray(serialNumbers) && serialNumbers.includes(item.serialNumber);
+  })
+).map((item) => (
                     <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div>
                         <h5 className="font-medium text-gray-900">{item.serialNumber}</h5>
@@ -757,7 +760,7 @@ const CustomerDashboard = () => {
         onClose={() => setShowPDF(false)}
         type={pdfType}
         data={{
-          customerName: currentUser?.name,
+          customer_name: currentUser?.name,
           amount: 25000,
           invoiceNumber: "INV-2024-001"
         }}

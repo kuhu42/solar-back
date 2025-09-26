@@ -34,7 +34,7 @@ const [installationNotes, setInstallationNotes] = useState('');
   );
 const myProjects = projects.filter(p => 
   p.installer_id === currentUser?.id && 
-  (p.status === 'in_progress' || p.status === 'completed')
+  (p.status === 'in_progress' || p.status === 'completed' || p.status === 'approved')
 );
 const handleCompleteInstallation = (project) => {
   setCompletingProject(project);

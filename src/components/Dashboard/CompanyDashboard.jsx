@@ -75,17 +75,17 @@ const CompanyDashboard = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [userFilter, setUserFilter] = useState('all');
 
-  const [createProjectForm, setCreateProjectForm] = useState({
-    title: '',
-    value: '',
-    description: '',
-    location: '',
-    customerId: '',
-    agentId: '',
-    selectedEquipment: [],
-    type: 'solar'
-  });
-
+const [createProjectForm, setCreateProjectForm] = useState({
+  title: '',
+  value: '',
+  description: '',
+  location: '',
+  customerId: '',
+  installerId: '', // Add this
+  agentId: '',     // Keep this for agent assignment
+  type: 'solar'
+  // Remove selectedEquipment array
+});
  const pendingAdminReview = projects.filter(p => 
   p.status === 'pending_admin_review' && 
   p.metadata?.requires_admin_review === true &&
@@ -182,95 +182,76 @@ const handleAdminApprove = async (project) => {
   };
 
   // Flow #1: Admin creates project directly
-  const handleCreateProject = async (e) => {
-    e.preventDefault();
+const handleCreateProject = async (e) => {
+  e.preventDefault();
+  
+  if (!createProjectForm.title || !createProjectForm.value || !createProjectForm.description || 
+      !createProjectForm.location || !createProjectForm.customerId || !createProjectForm.agentId || 
+      !createProjectForm.installerId) {
+    showToast(t('pleaseFillFields'), 'error'); 
+    return;
+  }
+
+  try {
+    const customer = users.find(u => u.id === createProjectForm.customerId);
+    const agent = users.find(u => u.id === createProjectForm.agentId);
+    const installer = users.find(u => u.id === createProjectForm.installerId);
+
+    const projectData = {
+      title: createProjectForm.title,
+      value: parseFloat(createProjectForm.value),
+      description: createProjectForm.description,
+      location: createProjectForm.location,
+      customer_id: createProjectForm.customerId,
+      customer_name: customer.name,
+      agent_id: createProjectForm.agentId,
+      assigned_to: createProjectForm.agentId,
+      assigned_to_name: agent.name,
+      installer_id: createProjectForm.installerId,
+      installer_name: installer.name,
+      installer_assigned: true, // Set to true immediately
+      status: PROJECT_STATUS.APPROVED,
+      pipeline_stage: PIPELINE_STAGES.INSTALLER_ASSIGNED, // Change to installer assigned
+      type: createProjectForm.type,
+      installation_approved: true,
+      installation_complete: false,
+      metadata: {
+        created_by_role: 'company',
+        project_source: 'admin',
+        flow_type: 'admin_direct',
+        admin_approved: true,
+        admin_approved_at: new Date().toISOString()
+      }
+    };
+
+    const newProject = await createProject(projectData);
+    showToast(t('projectCreatedSuccess'));
+    setShowCreateProject(false);
+    setCreateProjectForm({
+      title: '',
+      value: '',
+      description: '',
+      location: '',
+      customerId: '',
+      agentId: '',
+      installerId: '',
+      type: 'solar'
+    });
+
+    if (isLiveMode) {
+      try {
+        const updatedProjects = await dbService.getProjects();
+        dispatch({ type: 'SET_PROJECTS', payload: updatedProjects });
+      } catch (reloadError) {
+        console.error('Failed to reload projects:', reloadError);
+      }
+    }
     
-    if (!createProjectForm.title || !createProjectForm.value || !createProjectForm.description || 
-        !createProjectForm.location || !createProjectForm.customerId || !createProjectForm.agentId) {
-      showToast(t('pleaseFillFields'), 'error'); 
-      return;
-    }
-
-    if (createProjectForm.selectedEquipment.length === 0) {
-      showToast(t('pleaseSelectEquipment'), 'error'); 
-      return;
-    }
-
-    try {
-      const customer = users.find(u => u.id === createProjectForm.customerId);
-      const agent = users.find(u => u.id === createProjectForm.agentId);
-
-      // Flow #1: Admin creates project - auto-approved
-      const projectData = {
-        title: createProjectForm.title,
-        value: parseFloat(createProjectForm.value),
-        description: createProjectForm.description,
-        location: createProjectForm.location,
-        customer_id: createProjectForm.customerId,
-        customer_name: customer.name,
-        customer_ref_number: customer.customerRefNumber || customer.customer_ref_number || `REF${Date.now()}`,
-        agent_id: createProjectForm.agentId,
-        assigned_to: createProjectForm.agentId,
-        assigned_to_name: agent.name,
-        serial_numbers: createProjectForm.selectedEquipment,
-        status: PROJECT_STATUS.APPROVED, // Flow #1: Auto-approved by admin
-        pipeline_stage: PIPELINE_STAGES.READY_FOR_INSTALLATION,
-        type: createProjectForm.type,
-        installation_approved: true,
-        installer_assigned: false,
-        installation_complete: false,
-        metadata: {
-          created_by_role: 'company',
-          project_source: 'admin',
-          flow_type: 'admin_direct',
-          admin_approved: true,
-          admin_approved_at: new Date().toISOString()
-        }
-      };
-
-      const newProject = await createProject(projectData);
-
-      // Update equipment status to assigned
-      if (createProjectForm.selectedEquipment.length > 0) {
-        for (const serialNumber of createProjectForm.selectedEquipment) {
-          try {
-            await updateInventoryStatus(serialNumber, INVENTORY_STATUS.ASSIGNED, {
-              assignedToProject: newProject.id
-            });
-          } catch (inventoryError) {
-            console.error(`Failed to update inventory ${serialNumber}:`, inventoryError);
-          }
-        }
-      }
-
-      showToast(t('projectCreatedSuccess'));
-      setShowCreateProject(false);
-      setCreateProjectForm({
-        title: '',
-        value: '',
-        description: '',
-        location: '',
-        customerId: '',
-        agentId: '',
-        selectedEquipment: [],
-        type: 'solar'
-      });
-
-      // Reload projects if in live mode
-      if (isLiveMode) {
-        try {
-          const updatedProjects = await dbService.getProjects();
-          dispatch({ type: 'SET_PROJECTS', payload: updatedProjects });
-        } catch (reloadError) {
-          console.error('Failed to reload projects:', reloadError);
-        }
-      }
-      
-    } catch (error) {
-      console.error('Error creating project:', error);
-      showToast(`${t('errorCreatingProject')}: ${error.message}`, 'error');
-    }
-  };
+  } catch (error) {
+    console.error('Error creating project:', error);
+    showToast(`${t('errorCreatingProject')}: ${error.message}`, 'error');
+  }
+};
 
   // Flow #1: Admin project editing
   const handleEditProjectAsAdmin = (project) => {
@@ -340,35 +321,35 @@ const handleAdminApprove = async (project) => {
     }
   };
 
-const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
-  const installer = availableInstallers.find(i => i.id === installerId);
+//const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
+ // const installer = availableInstallers.find(i => i.id === installerId);
   
-  if (!installer) {
-    showToast('Installer not found', 'error');
-    return;
-  }
+  //if (!installer) {
+    //showToast('Installer not found', 'error');
+    //return;
+  //}
 
-  try {
-    await assignInstallerToProject(projectId, installerId, installer.name);
+ // try {
+  //  await assignInstallerToProject(projectId, installerId, installer.name);
     
-    await updateProject(projectId, {
-      pipeline_stage: 'installer_assigned',
-      installer_assigned: true,
-      status: 'in_progress',
-      metadata: {
-        installer_assigned_at: new Date().toISOString(),
-        flow_stage: 'installer_assigned'
-      }
-    });
+   // await updateProject(projectId, {
+     // pipeline_stage: 'installer_assigned',
+     // installer_assigned: true,
+     // status: 'in_progress',
+     // metadata: {
+     //   installer_assigned_at: new Date().toISOString(),
+      //  flow_stage: 'installer_assigned'
+     // }
+   // });
     
-    showToast(`Installer ${installer.name} assigned successfully! Project is now active.`);
-  } catch (error) {
-    showToast('Error assigning installer: ' + error.message, 'error');
-  }
+ //   showToast(`Installer ${installer.name} assigned successfully! Project is now active.`);
+ // } catch (error) {
+  //  showToast('Error assigning installer: ' + error.message, 'error');
+ // }
   
-  setShowAssignInstaller(false);
-  setSelectedProject(null);
-};
+ // setShowAssignInstaller(false);
+ // setSelectedProject(null);
+//};
 
   const handleDeactivateUser = async (user) => {
     if (confirm(`Are you sure you want to deactivate ${user.name}?`)) {
@@ -1384,74 +1365,65 @@ const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Customer *
-                  </label>
-                  <select
-                    value={createProjectForm.customerId}
-                    onChange={(e) => setCreateProjectForm({...createProjectForm, customerId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select Customer</option>
-                    {activeCustomers.map(customer => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.name} - {customer.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Assign Agent *
-                  </label>
-                  <select
-                    value={createProjectForm.agentId}
-                    onChange={(e) => setCreateProjectForm({...createProjectForm, agentId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select Agent</option>
-                    {activeAgents.map(agent => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} - {agent.email}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Customer *
+    </label>
+    <select
+      value={createProjectForm.customerId}
+      onChange={(e) => setCreateProjectForm({...createProjectForm, customerId: e.target.value})}
+      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      required
+    >
+      <option value="">Select Customer</option>
+      {activeCustomers.map(customer => (
+        <option key={customer.id} value={customer.id}>
+          {customer.name} - {customer.email}
+        </option>
+      ))}
+    </select>
+  </div>
+  
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Assign Agent *
+    </label>
+    <select
+      value={createProjectForm.agentId}
+      onChange={(e) => setCreateProjectForm({...createProjectForm, agentId: e.target.value})}
+      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      required
+    >
+      <option value="">Select Agent</option>
+      {activeAgents.map(agent => (
+        <option key={agent.id} value={agent.id}>
+          {agent.name} - {agent.email}
+        </option>
+      ))}
+    </select>
+  </div>
 
-              {/* Equipment Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Assign Equipment (Required)
-                </label>
-                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                  {availableEquipment.length > 0 ? (
-                    <div className="space-y-2">
-                      {availableEquipment.map(item => (
-                        <label key={item.serialNumber} className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={createProjectForm.selectedEquipment.includes(item.serialNumber)}
-                            onChange={() => handleEquipmentToggle(item.serialNumber)}
-                            className="mr-3"
-                          />
-                          <div className="flex-1">
-                            <span className="font-medium">{item.model} - {item.type}</span>
-                            <span className="text-sm text-gray-500 ml-2">({item.serialNumber})</span>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-sm">No available equipment in stock</p>
-                  )}
-                </div>
-              </div>
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">
+      Assign Installer *
+    </label>
+    <select
+      value={createProjectForm.installerId}
+      onChange={(e) => setCreateProjectForm({...createProjectForm, installerId: e.target.value})}
+      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      required
+    >
+      <option value="">Select Installer</option>
+      {availableInstallers.map(installer => (
+        <option key={installer.id} value={installer.id}>
+          {installer.name} - {installer.role}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
+
 
               <div className="flex justify-end space-x-3 pt-4">
                 <button

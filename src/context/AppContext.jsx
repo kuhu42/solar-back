@@ -1135,6 +1135,7 @@ const createProject = async (projectData) => {
     alert(`${type.toUpperCase()}: ${message}`);
   };
 
+// Add to your AppContext provider value:
 const value = {
   ...state,
   dispatch,
@@ -1145,54 +1146,7 @@ const value = {
   loginLive,
   createDemoUsers,
   
-  // NEW: Registration method (this fixes the "register is not a function" error)
-  register: async (email, password, userData) => {
-    if (state.isLiveMode) {
-      try {
-        console.log('Registering user with data:', userData);
-        
-        // Use the auth service to register the user
-        const result = await authService.signUp(email, password, userData);
-        
-        if (result.user) {
-          console.log('Registration successful:', result.user);
-          
-          // If it's a professional (not customer or company), auto-assign to team
-          if (userData.role !== 'customer' && userData.role !== 'company' && userData.role !== 'middleman') {
-            try {
-              await teamGroupingService.assignUserToTeam(result.user.id, {
-                city: teamGroupingService.getCityFromPincode(userData.pincode),
-                role: userData.role,
-                pincode: userData.pincode
-              });
-            } catch (teamError) {
-              console.error('Team assignment failed (non-critical):', teamError);
-              // Don't throw - team assignment failure shouldn't break registration
-            }
-          }
-          
-          return result;
-        }
-        
-        throw new Error('Registration failed - no user returned');
-      } catch (error) {
-        console.error('Registration error:', error);
-        throw error;
-      }
-    } else {
-      // Demo mode - just add to state
-      const newUser = {
-        id: `user-${Date.now()}`,
-        ...userData,
-        created_at: new Date().toISOString()
-      };
-      
-      dispatch({ type: 'ADD_USER', payload: newUser });
-      return { user: newUser };
-    }
-  },
-
-  // Existing project management methods
+  // Existing methods...
   createProject,
   approveProject,
   updateProject,
@@ -1200,8 +1154,6 @@ const value = {
   markInstallationComplete,
   createTask,
   updateInventoryStatus,
-  
-  // Other existing methods
   addLead,
   updateLead,
   addComplaint,
@@ -1217,13 +1169,13 @@ const value = {
   authService,
   dbService,
 
-  // NEW: Team-related methods for the teams functionality
+  // NEW: Team-related methods
   getTeamsByRole: async (role) => {
     try {
       if (state.isLiveMode) {
         return await teamGroupingService.getTeamsByRole(role);
       } else {
-        // Demo mode - create mock teams for testing
+        // Demo mode - create mock teams
         return createMockTeams(role);
       }
     } catch (error) {
@@ -1261,7 +1213,7 @@ const value = {
     }
   },
 
-  // Get current user's team (computed property)
+  // Get current user's team
   get userTeam() {
     if (!state.currentUser || !state.currentUser.pincode || 
         state.currentUser.role === 'customer' || state.currentUser.role === 'company') {
@@ -1283,20 +1235,15 @@ const value = {
     };
   },
 
-  // Get team statistics (computed property)
+  // Get team statistics
   get teamStats() {
-    const users = state.users.filter(u => 
-      u.role !== 'customer' && 
-      u.role !== 'company' && 
-      u.pincode && 
-      ['Delhi', 'Mumbai', 'Hyderabad', 'Bangalore'].includes(
-        teamGroupingService.getCityFromPincode(u.pincode)
-      )
-    );
-    
+    const users = state.users.filter(u => u.role !== 'customer' && u.role !== 'company' && u.pincode);
     const teams = {};
+    
     users.forEach(user => {
       const city = teamGroupingService.getCityFromPincode(user.pincode);
+      if (!['Delhi', 'Mumbai', 'Hyderabad', 'Bangalore'].includes(city)) return;
+      
       const teamKey = `${city}_${user.role}`;
       if (!teams[teamKey]) teams[teamKey] = 0;
       teams[teamKey]++;
@@ -1315,7 +1262,7 @@ const value = {
   }
 };
 
-// Helper functions for demo mode (add these at the bottom of AppContext.jsx, before the closing brace)
+// Helper functions for demo mode
 function createMockTeams(role) {
   const cities = ['Delhi', 'Mumbai', 'Hyderabad', 'Bangalore'];
   return cities.map(city => ({

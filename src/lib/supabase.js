@@ -77,7 +77,7 @@ async createUserProfile(userData) {
     location: userData.location || null,
     education: userData.education || null,
     bank_details: userData.bankDetails || null,
-    requested_role: userData.requestedRole || null,
+    requested_role: userData.requestedRole || userData.requested_role || null,
     customer_ref_number: userData.customerRefNumber || null,
     
     // ✅ Store all customer-specific data in the customer_data JSONB column
@@ -306,7 +306,92 @@ async updateUserProfile(id, updates) {
     if (error) throw error;
     return data;
   },
-
+// Replace the updateProjectWithStatusHistory method with this version that has better error handling
+async updateProjectWithStatusHistory(id, updates) {
+  console.log('🔄 Starting project update:', { id, updates });
+  
+  try {
+    // Get current project first
+    const { data: currentProject, error: fetchError } = await supabase
+      .from('projects')
+      .select('metadata')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError) {
+      console.error('❌ Error fetching current project:', fetchError);
+      throw new Error(`Failed to fetch project: ${fetchError.message}`);
+    }
+    
+    console.log('📄 Current project metadata:', currentProject?.metadata);
+    
+    const currentMetadata = currentProject?.metadata || {};
+    const statusHistory = currentMetadata.status_history || [];
+    
+    // Add new status history entry if stage is being updated
+    if (updates.pipeline_stage) {
+      const historyEntry = {
+        stage: updates.pipeline_stage,
+        updated_by: updates.updated_by || 'System',
+        updated_at: new Date().toISOString(),
+        comment: updates.status_comment || updates.comment || null
+      };
+      statusHistory.push(historyEntry);
+      console.log('📝 Adding status history entry:', historyEntry);
+    }
+    
+    // Clean up the updates object - remove any undefined or invalid fields
+    const cleanUpdates = {};
+    
+    // Only include valid database columns
+    const validColumns = [
+      'pipeline_stage', 'status', 'title', 'description', 'location', 'value',
+      'customer_id', 'customer_name', 'assigned_to', 'assigned_to_name',
+      'installer_id', 'installer_name', 'installer_assigned', 'installation_complete',
+      'completion_date', 'installer_notes', 'agent_id', 'pincode', 'customer_phone',
+      'type', 'start_date', 'end_date', 'installation_approved', 'coordinates',
+      'serial_numbers', 'customer_details', 'customer_ref_number'
+    ];
+    
+    validColumns.forEach(column => {
+      if (updates[column] !== undefined) {
+        cleanUpdates[column] = updates[column];
+      }
+    });
+    
+    // Handle metadata separately
+    cleanUpdates.metadata = {
+      ...currentMetadata,
+      ...updates.metadata,
+      status_history: statusHistory
+    };
+    
+    // Add timestamp
+    cleanUpdates.updated_at = new Date().toISOString();
+    
+    console.log('🧹 Clean updates being sent:', cleanUpdates);
+    
+    const { data, error } = await supabase
+      .from('projects')
+      .update(cleanUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('❌ Supabase update error:', error);
+      console.error('❌ Error details:', JSON.stringify(error, null, 2));
+      throw new Error(`Database update failed: ${error.message}`);
+    }
+    
+    console.log('✅ Project updated successfully:', data);
+    return data;
+    
+  } catch (error) {
+    console.error('❌ updateProjectWithStatusHistory failed:', error);
+    throw error;
+  }
+},
   // ===== ATTENDANCE MANAGEMENT =====
   
   async getAttendance() {

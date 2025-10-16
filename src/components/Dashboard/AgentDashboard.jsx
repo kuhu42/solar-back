@@ -8,6 +8,9 @@ import { PROJECT_STATUS, TASK_STATUS, PIPELINE_STAGES } from '../../types/index.
 import PDFPreview from '../Common/PDFPreview.jsx';
 import { dbService } from '../../lib/supabase.js';
 import { Edit3, ThumbsDown } from 'lucide-react';
+import StatusUpdateModal from '../Common/StatusUpdateModal.jsx';
+import { STAGE_LABELS, STAGE_COLORS, STAGE_PERMISSIONS } from '../../types/index.js';
+
 import { 
   MapPin, 
   Clock, 
@@ -35,7 +38,7 @@ import {
 } from 'lucide-react';
 
 const AgentDashboard = () => {
-  const { currentUser, projects, tasks, attendance, dispatch, showToast, approveProject, users, isLiveMode, dbService } = useApp();
+  const { currentUser, projects, tasks, attendance, dispatch, showToast, approveProject, updateProject, users, isLiveMode, dbService } = useApp();
   const [activeTab, setActiveTab] = useState('overview');
   const [checkingIn, setCheckingIn] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -44,6 +47,9 @@ const AgentDashboard = () => {
   const [quotationData, setQuotationData] = useState(null);
   const [sendingQuote, setSendingQuote] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
+  const [showStatusUpdate, setShowStatusUpdate] = useState(false);
+const [selectedProjectForStatus, setSelectedProjectForStatus] = useState(null);
+
 // Replace the pendingReviewProjects filter in AgentDashboard.jsx
 // Replace the pendingReviewProjects filter in AgentDashboard.jsx
 const pendingReviewProjects = projects.filter(p => {
@@ -309,13 +315,30 @@ const handleRejectProject = async (projectId) => {
     }, 1500);
   };
 
-  const handleUpdateProjectStatus = (projectId, status) => {
-    dispatch({
-      type: 'UPDATE_PROJECT_STATUS',
-      payload: { projectId, status }
-    });
-    showToast('Project status updated!');
-  };
+// In CompanyDashboard.jsx and AgentDashboard.jsx
+const handleUpdateProjectStatus = async (projectId, statusUpdate) => {
+  try {
+    console.log('📊 Updating project status:', { projectId, statusUpdate });
+    
+    // Call updateProject which will handle both database and local state
+    await updateProject(projectId, statusUpdate);
+    
+    showToast('Project status updated successfully!');
+    
+    // If in live mode, refresh the projects to get the latest data
+    if (isLiveMode && dbService?.isAvailable()) {
+      try {
+        const updatedProjects = await dbService.getProjects();
+        dispatch({ type: 'SET_PROJECTS', payload: updatedProjects });
+      } catch (reloadError) {
+        console.error('Failed to reload projects after update:', reloadError);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error updating project status:', error);
+    showToast('Error updating project status: ' + error.message, 'error');
+  }
+};
 
   const handleUpdatePipelineStage = (projectId, stage) => {
     dispatch({
@@ -819,19 +842,11 @@ const handleRejectProject = async (projectId) => {
                       <div className={`flex items-center space-x-2 ${
                         isMobileView ? 'w-full justify-between' : ''
                       }`}>
-                        <span className={`px-3 py-1 rounded-full font-medium ${
-                          isMobileView ? 'text-xs px-2 py-1' : 'text-xs'
-                        } ${
-                          project.status === PROJECT_STATUS.COMPLETED
-                            ? 'bg-green-100 text-green-800'
-                            : project.status === PROJECT_STATUS.IN_PROGRESS
-                            ? 'bg-blue-100 text-blue-800'
-                            : project.status === PROJECT_STATUS.APPROVED
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {project.status.replace('_', ' ')}
-                        </span>
+                       <span className={`px-3 py-1 rounded-full font-medium ${
+  isMobileView ? 'text-xs px-2 py-1' : 'text-xs'
+} ${STAGE_COLORS[project.pipeline_stage] || 'bg-gray-100 text-gray-800'}`}>
+  {STAGE_LABELS[project.pipeline_stage] || 'Unknown Status'}
+</span>
                         {isMobileView && (
                           <button className="text-green-600">
                             <ChevronRight className="w-5 h-5" />
@@ -841,28 +856,42 @@ const handleRejectProject = async (projectId) => {
                     </div>
 
                     <div className={`flex items-center space-x-3 ${
-                      isMobileView ? 'flex-col space-y-2 space-x-0' : ''
-                    }`}>
-                      <button
-                        onClick={() => handleSendQuote(project)}
-                        disabled={sendingQuote}
-                        className={`flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 ${
-                          isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
-                        }`}
-                      >
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        {sendingQuote ? 'Sending...' : 'Send Quote'}
-                      </button>
-                      
-                      <button
-                        onClick={() => setShowPDF(true)}
-                        className={`flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ${
-                          isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
-                        }`}
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        View Quote
-                      </button>
+  isMobileView ? 'flex-col space-y-2 space-x-0' : ''
+}`}>
+  <button
+    onClick={() => handleSendQuote(project)}
+    disabled={sendingQuote}
+    className={`flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 ${
+      isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
+    }`}
+  >
+    <MessageSquare className="w-4 h-4 mr-2" />
+    {sendingQuote ? 'Sending...' : 'Send Quote'}
+  </button>
+  
+  <button
+    onClick={() => setShowPDF(true)}
+    className={`flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ${
+      isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
+    }`}
+  >
+    <FileText className="w-4 h-4 mr-2" />
+    View Quote
+  </button>
+
+  {/* Only show Update Status for agents on stages they can update */}
+  {(currentUser?.role === 'agent' && STAGE_PERMISSIONS.agent.includes(project.pipeline_stage)) && (
+    <button
+      onClick={() => {
+        setSelectedProjectForStatus(project);
+        setShowStatusUpdate(true);
+      }}
+      className={`flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 ${
+        isMobileView ? 'text-sm w-full justify-center' : 'text-sm'
+      }`}
+    >
+      Update Status
+    </button>)}
                       
                       {project.status === PROJECT_STATUS.APPROVED && (
                         <button
@@ -888,26 +917,27 @@ const handleRejectProject = async (projectId) => {
                         </button>
                       )}
                       
-                      {!isMobileView && (
-                        <select
-                          value={project.pipeline_stage || 'lead_generated'}
-                          onChange={(e) => handleUpdatePipelineStage(project.id, e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        >
-                          <option value="lead_generated">Lead Generated</option>
-                          <option value="quotation_sent">Quotation Sent</option>
-                          <option value="bank_process">Bank Process</option>
-                          <option value="meter_applied">Meter Applied</option>
-                          <option value="ready_for_installation">Ready for Installation</option>
-                          <option value="installation_complete">Installation Complete</option>
-                          <option value="commissioned">Commissioned</option>
-                          <option value="active">Active</option>
-                        </select>
-                      )}
+                     
+
                     </div>
+                    {/* Status History */}
+{project.metadata?.status_history && project.metadata.status_history.length > 0 && (
+  <div className="mt-4 bg-gray-50 rounded-lg p-3">
+    <h6 className="font-medium text-gray-900 mb-2 text-sm">Recent Status Updates</h6>
+    <div className="space-y-1">
+      {project.metadata.status_history.slice(-2).map((history, index) => (
+        <div key={index} className="text-xs text-gray-600">
+          <span className="font-medium">{STAGE_LABELS[history.stage]}</span> - {history.updated_by}
+          {history.comment && <span className="italic"> • "{history.comment}"</span>}
+        </div>
+      ))}
+    </div>
+  </div>
+)}
                   </div>
                 ))}
               </div>
+              
             )}
 
 
@@ -1209,7 +1239,15 @@ const handleRejectProject = async (projectId) => {
           quoteNumber: "QUO-2024-001"
         }}
       />
+      <StatusUpdateModal
+  isOpen={showStatusUpdate}
+  onClose={() => setShowStatusUpdate(false)}
+  project={selectedProjectForStatus}
+  currentUser={currentUser}
+  onUpdate={handleUpdateProjectStatus}
+/>
     </div>
+    
     
   );
 };

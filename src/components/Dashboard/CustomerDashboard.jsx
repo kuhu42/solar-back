@@ -3,6 +3,8 @@ import React, { useState } from 'react';
 import { useApp } from '../../hooks/useApp.js'
 import { PROJECT_STATUS, COMPLAINT_STATUS } from '../../types/index.js';
 import PDFPreview from '../Common/PDFPreview.jsx';
+import { STAGE_LABELS, STAGE_COLORS } from '../../types/index.js';
+
 import { 
   Briefcase, 
   Search, 
@@ -27,6 +29,11 @@ const CustomerDashboard = () => {
   const [showComplaintForm, setShowComplaintForm] = useState(false);
   const [showPDF, setShowPDF] = useState(false);
   const [pdfType, setPdfType] = useState('invoice');
+  const timelineStages = [
+  'lead_generated', 'quotation_generated', 'bank_process', 'payment_70_done',
+  'ready_for_installation', 'installation_done', 'meter_applied', 'payment_30_done',
+  'completed', 'activated'
+];
   const [newComplaint, setNewComplaint] = useState({
     title: '',
     description: '',
@@ -274,58 +281,60 @@ const CustomerDashboard = () => {
               </div>
 
               {/* Project Status Timeline */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Progress</h3>
-                {(myProjects || []).map((project) => (
-                  <div key={project.id} className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <h4 className="font-medium text-gray-900 mb-3">{project.title}</h4>
-                    <div className="flex items-center space-x-2 overflow-x-auto pb-2">
-                      {[
-                        'lead_generated',
-                        'quotation_sent', 
-                        'bank_process',
-                        'meter_applied',
-                        'ready_for_installation',
-                        'installation_complete',
-                        'commissioned',
-                        'active'
-                      ].map((stage, index) => {
-                        const isCompleted = [
-                          'lead_generated',
-                          'quotation_sent',
-                          'bank_process',
-                          'meter_applied',
-                          'ready_for_installation',
-                          'installation_complete'
-                        ].indexOf(project.pipeline_stage) >= index;
-                        const isCurrent = project.pipeline_stage === stage;
-                        
-                        return (
-                          <div key={stage} className="flex items-center">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                              isCompleted 
-                                ? 'bg-green-500 text-white' 
-                                : isCurrent
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-300 text-gray-600'
-                            }`}>
-                              {isCompleted ? '✓' : index + 1}
-                            </div>
-                            {index < 7 && (
-                              <div className={`w-8 h-1 ${
-                                isCompleted ? 'bg-green-500' : 'bg-gray-300'
-                              }`}></div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <p className="text-sm text-gray-600 mt-2 capitalize">
-                      Current Stage: {project.pipeline_stage?.replace('_', ' ')}
-                    </p>
-                  </div>
-                ))}
+<div>
+  <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Progress</h3>
+  {(myProjects || []).map((project) => (
+    <div key={project.id} className="bg-gray-50 rounded-lg p-4 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <h4 className="font-medium text-gray-900">{project.title}</h4>
+        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+          STAGE_COLORS[project.pipeline_stage] || 'bg-gray-100 text-gray-800'
+        }`}>
+          {STAGE_LABELS[project.pipeline_stage] || 'Unknown Status'}
+        </span>
+      </div>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+  <div className="text-sm text-blue-700">
+    <span className="font-medium">Current Status:</span>
+    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+      STAGE_COLORS[project.pipeline_stage] || 'bg-gray-100 text-gray-800'
+    }`}>
+      {STAGE_LABELS[project.pipeline_stage] || 'Unknown Status'}
+    </span>
+  </div>
+</div>
+      <div className="flex items-center space-x-2 overflow-x-auto pb-2">
+        {timelineStages.map((stage, index) => {
+          const currentStageIndex = timelineStages.indexOf(project.pipeline_stage);
+          const isCompleted = index <= currentStageIndex;
+          const isCurrent = project.pipeline_stage === stage;
+          
+          return (
+            <div key={stage} className="flex items-center">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+                isCompleted 
+                  ? 'bg-green-500 text-white' 
+                  : isCurrent
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-300 text-gray-600'
+              }`}>
+                {isCompleted ? '✓' : index + 1}
               </div>
+              {index < timelineStages.length - 1 && (
+                <div className={`w-8 h-1 ${
+                  isCompleted ? 'bg-green-500' : 'bg-gray-300'
+                }`}></div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-sm text-gray-600 mt-2">
+        Current Stage: {STAGE_LABELS[project.pipeline_stage] || 'Unknown'}
+      </p>
+    </div>
+  ))}
+</div>
 
               {/* Recent Activity */}
               <div>

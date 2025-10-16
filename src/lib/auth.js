@@ -15,16 +15,16 @@ export const authService = {
 
 async signUp(email, password, userData) {
   try {
-    console.log('🔍 Auth Service: signUp called with:', { email, userData });
+    console.log('🔐 Auth Service: signUp called with:', { email, userData });
 
     // Validate pincode before creating user
     if (userData.pincode && !this.validatePincode(userData.pincode)) {
       throw new Error('Invalid pincode or unsupported location');
     }
 
-    console.log('🔍 Pincode validation passed, creating auth user...');
+    console.log('🔐 Pincode validation passed, creating auth user...');
 
-    // Create auth user first - this creates a record in the users table automatically
+    // Create auth user first
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -33,37 +33,37 @@ async signUp(email, password, userData) {
           name: userData.name,
           role: userData.role,
           phone: userData.phone,
-          pincode: userData.pincode, // This might not work, Supabase auth has limited metadata
+          pincode: userData.pincode,
           status: userData.status || 'pending',
+          requested_role: userData.requestedRole || userData.requested_role,  // ✅ UPDATED
           ...userData
         }
       }
     });
 
     if (error) {
-      console.error('🔍 Auth user creation failed:', error);
+      console.error('🔐 Auth user creation failed:', error);
       throw error;
     }
 
-    console.log('🔍 Auth user created successfully:', data.user?.id);
+    console.log('🔐 Auth user created successfully:', data.user?.id);
 
-    // UPDATE the existing user record instead of inserting a new one
+    // UPDATE the existing user record
     if (data.user) {
-      console.log('🔍 Updating user profile with complete data...');
+      console.log('🔐 Updating user profile with complete data...');
       
       try {
-        // Use updateUserProfile instead of createUserProfile
         const profile = await dbService.updateUserProfile(data.user.id, {
           name: userData.name,
           phone: userData.phone,
           role: userData.role || 'pending',
           status: userData.status || 'pending',
-          pincode: userData.pincode, // This should now work!
+          pincode: userData.pincode,
           address: userData.address,
           location: userData.pincode ? this.getCityFromPincode(userData.pincode) : null,
           education: userData.education,
           bank_details: userData.bankDetails,
-          requested_role: userData.requestedRole,
+          requested_role: userData.requestedRole || userData.requested_role,  // ✅ UPDATED
           customer_ref_number: userData.customerRefNumber,
           customer_data: {
             serviceNumber: userData.serviceNumber,
@@ -76,29 +76,29 @@ async signUp(email, password, userData) {
           }
         });
         
-        console.log('🔍 User profile updated successfully:', profile);
+        console.log('✅ User profile updated successfully:', profile);
         
         // Auto-assign to team based on pincode and role if it's a professional
         if (userData.pincode && userData.role !== 'customer' && userData.role !== 'company') {
           try {
-            console.log('🔍 Attempting team assignment...');
+            console.log('👥 Attempting team assignment...');
             await this.assignUserToTeam(profile);
-            console.log('🔍 Team assignment completed');
+            console.log('✅ Team assignment completed');
           } catch (teamError) {
-            console.error('🔍 Team assignment failed (non-critical):', teamError);
+            console.error('❌ Team assignment failed (non-critical):', teamError);
           }
         }
         
         return { ...data, profile };
       } catch (profileError) {
-        console.error('🔍 Error updating user profile:', profileError);
+        console.error('❌ Error updating user profile:', profileError);
         throw new Error(`Profile update failed: ${profileError.message}`);
       }
     }
 
     return data;
   } catch (error) {
-    console.error('🔍 Signup error:', error);
+    console.error('❌ Signup error:', error);
     throw error;
   }
 },

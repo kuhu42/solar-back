@@ -12,7 +12,8 @@ import ModeToggle from '../Common/ModeToggle.jsx';
 //import TeamsDisplay from '../Common/TeamsDisplay.jsx';
 import { PROJECT_STATUS, PIPELINE_STAGES, USER_STATUS, INVENTORY_STATUS } from '../../types/index.js';
 import { useLanguage } from '../../context/LanguageContext.js';
-
+import StatusUpdateModal from '../Common/StatusUpdateModal.jsx';
+import { STAGE_LABELS, STAGE_COLORS, STAGE_PERMISSIONS } from '../../types/index.js';
 import { 
   Users, 
   Briefcase, 
@@ -35,7 +36,9 @@ import {
   Edit3,
   ThumbsUp,
   ThumbsDown,
-  UserPlus
+  UserPlus,
+  User,     // ✅ ADD THIS
+  Wrench 
 } from 'lucide-react';
 
 const CompanyDashboard = () => {
@@ -74,6 +77,12 @@ const CompanyDashboard = () => {
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
   const [userFilter, setUserFilter] = useState('all');
+  const [showStatusUpdate, setShowStatusUpdate] = useState(false);
+const [selectedProjectForStatus, setSelectedProjectForStatus] = useState(null);
+const [showTeamDetails, setShowTeamDetails] = useState(null); 
+const [selectedInstaller, setSelectedInstaller] = useState('');
+
+
 
 const [createProjectForm, setCreateProjectForm] = useState({
   title: '',
@@ -121,7 +130,30 @@ const [createProjectForm, setCreateProjectForm] = useState({
   });
 
   // ===== HANDLERS =====
-
+// In CompanyDashboard.jsx and AgentDashboard.jsx
+const handleUpdateProjectStatus = async (projectId, statusUpdate) => {
+  try {
+    console.log('📊 Updating project status:', { projectId, statusUpdate });
+    
+    // Call updateProject which will handle both database and local state
+    await updateProject(projectId, statusUpdate);
+    
+    showToast('Project status updated successfully!');
+    
+    // If in live mode, refresh the projects to get the latest data
+    if (isLiveMode && dbService?.isAvailable()) {
+      try {
+        const updatedProjects = await dbService.getProjects();
+        dispatch({ type: 'SET_PROJECTS', payload: updatedProjects });
+      } catch (reloadError) {
+        console.error('Failed to reload projects after update:', reloadError);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error updating project status:', error);
+    showToast('Error updating project status: ' + error.message, 'error');
+  }
+};
   const handleApproveUser = async (userId, role) => {
     try {
       await updateUserStatus(userId, 'active', role);
@@ -350,7 +382,34 @@ const handleCreateProject = async (e) => {
  // setShowAssignInstaller(false);
  // setSelectedProject(null);
 //};
+const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
+  const installer = availableInstallers.find(i => i.id === installerId);
+  
+  if (!installer) {
+    showToast('Installer not found', 'error');
+    return;
+  }
 
+  try {
+    await assignInstallerToProject(projectId, installerId, installer.name);
+    
+    await updateProject(projectId, {
+      pipeline_stage: 'installer_assigned',
+      installer_assigned: true,
+      status: 'in_progress',
+      metadata: {
+        installer_assigned_at: new Date().toISOString(),
+        flow_stage: 'installer_assigned'
+      }
+    });
+    
+    showToast(`Installer ${installer.name} assigned successfully! Project is now active.`);
+    setShowAssignInstaller(false);
+    setSelectedProject(null);
+  } catch (error) {
+    showToast('Error assigning installer: ' + error.message, 'error');
+  }
+};
   const handleDeactivateUser = async (user) => {
     if (confirm(`Are you sure you want to deactivate ${user.name}?`)) {
       try {
@@ -684,32 +743,48 @@ const handleCreateProject = async (e) => {
             <p className="text-gray-600 mt-1">{project.description}</p>
             
             {/* Project Details Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3 text-sm bg-white p-4 rounded-lg">
-              <div>
-                <span className="font-medium text-gray-700">Customer:</span>
-                <p>{project.customer_name}</p>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700">Phone:</span>
-                <p>{project.customer_phone}</p>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700">Project Value:</span>
-                <p className="font-bold text-green-600">â‚¹{project.value?.toLocaleString() || '0'}</p>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700">Location:</span>
-                <p>{project.location}</p>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700">Pincode:</span>
-                <p>{project.pincode}</p>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700">Type:</span>
-                <p className="capitalize">{project.type}</p>
-              </div>
-            </div>
+<div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-3 text-sm bg-white p-4 rounded-lg">
+  <div>
+    <span className="font-medium text-gray-700">Customer:</span>
+    <p>{project.customer_name}</p>
+  </div>
+  <div>
+    <span className="font-medium text-gray-700">Phone:</span>
+    <p>{project.customer_phone}</p>
+  </div>
+  <div>
+    <span className="font-medium text-gray-700">Project Value:</span>
+    <p className="font-bold text-green-600">₹{project.value?.toLocaleString() || '0'}</p>
+  </div>
+  <div>
+    <span className="font-medium text-gray-700">Location:</span>
+    <p>{project.location}</p>
+  </div>
+  <div>
+    <span className="font-medium text-gray-700">Pincode:</span>
+    <p>{project.pincode}</p>
+  </div>
+  <div>
+    <span className="font-medium text-gray-700">Type:</span>
+    <p className="capitalize">{project.type}</p>
+  </div>
+  
+  {/* ✅ NEW: Show Freelancer Info */}
+  {project.metadata?.freelancer_name && (
+    <div>
+      <span className="font-medium text-gray-700">Freelancer:</span>
+      <p className="text-blue-600">{project.metadata.freelancer_name}</p>
+    </div>
+  )}
+  
+  {/* ✅ NEW: Show Agent Info */}
+  {project.metadata?.agent_name && (
+    <div>
+      <span className="font-medium text-gray-700">Agent:</span>
+      <p className="text-green-600">{project.metadata.agent_name}</p>
+    </div>
+  )}
+</div>
             
             {/* Timeline */}
             <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs">
@@ -734,7 +809,13 @@ const handleCreateProject = async (e) => {
             <Eye className="w-4 h-4 mr-2" />
             View Customer Details
           </button>
-          
+          <button
+  onClick={() => setShowTeamDetails(project)}
+  className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+>
+  <Users className="w-4 h-4 mr-2" />
+  View Team
+</button>
           <div className="flex items-center space-x-2 ml-auto">
             <button
               onClick={() => handleAdminReject(project.id)}
@@ -760,6 +841,7 @@ const handleCreateProject = async (e) => {
             <button
               onClick={() => {
                 setSelectedProject(project);
+                setSelectedInstaller('');
                 setShowAssignInstaller(true);
               }}
               className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
@@ -865,36 +947,77 @@ const handleCreateProject = async (e) => {
     <div className="grid gap-6">
       {projects.map(project => (
         <div key={project.id} className="border border-gray-200 rounded-lg p-6">
-          {/* Existing project content structure */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1">
               <div className="flex items-center space-x-3 mb-2">
                 <h4 className="text-lg font-medium text-gray-900">{project.title}</h4>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  STAGE_COLORS[project.pipeline_stage] || 'bg-gray-100 text-gray-800'
+                }`}>
+                  {STAGE_LABELS[project.pipeline_stage] || 'Unknown Status'}
+                </span>
               </div>
-              {/* Add other project details as needed */}
+              <p className="text-gray-600 mt-1">{project.description}</p>
+              <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
+  <span>Customer: {project.customer_name}</span>
+  <span>Value: ₹{project.value?.toLocaleString()}</span>
+  <span>Location: {project.location}</span>
+  
+  {/* ✅ NEW: Show Team Members */}
+  {project.metadata?.freelancer_name && (
+    <span className="text-blue-600">
+      Freelancer: {project.metadata.freelancer_name}
+    </span>
+  )}
+  {project.metadata?.agent_name && (
+    <span className="text-green-600">
+      Agent: {project.metadata.agent_name}
+    </span>
+  )}
+  {project.installer_name && (
+    <span className="text-purple-600">
+      Installer: {project.installer_name}
+    </span>
+  )}
+</div>
             </div>
           </div>
           
-          {/* Pipeline Stage */}
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Pipeline Stage:
-            </label>
-            <select
-              value={project.pipelineStage || 'lead_generated'}
-              onChange={(e) => handleUpdatePipelineStage(project.id, e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          {/* Action buttons */}
+          <div className="flex items-center space-x-3 mt-4">
+            <button
+              onClick={() => {
+                setSelectedProjectForStatus(project);
+                setShowStatusUpdate(true);
+              }}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
             >
-              <option value="lead_generated">Lead Generated</option>
-              <option value="quotation_sent">Quotation Sent</option>
-              <option value="bank_process">Bank Process</option>
-              <option value="meter_applied">Meter Applied</option>
-              <option value="ready_for_installation">Ready for Installation</option>
-              <option value="installation_complete">Installation Complete</option>
-              <option value="commissioned">Commissioned</option>
-              <option value="active">Active</option>
-            </select>
+              Update Status
+            </button>
+            
+            <button
+              onClick={() => handleEditProjectAsAdmin(project)}
+              className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+            >
+              <Edit3 className="w-4 h-4 mr-2" />
+              Edit
+            </button>
           </div>
+
+          {/* Status History */}
+          {project.metadata?.status_history && project.metadata.status_history.length > 0 && (
+            <div className="mt-4 bg-gray-50 rounded-lg p-3">
+              <h6 className="font-medium text-gray-900 mb-2 text-sm">Recent Status Updates</h6>
+              <div className="space-y-1">
+                {project.metadata.status_history.slice(-2).map((history, index) => (
+                  <div key={index} className="text-xs text-gray-600">
+                    <span className="font-medium">{STAGE_LABELS[history.stage]}</span> - {history.updated_by}
+                    {history.comment && <span className="italic"> • "{history.comment}"</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -927,10 +1050,10 @@ const handleCreateProject = async (e) => {
                               <h5 className="font-medium text-gray-900">{user.name}</h5>
                               <p className="text-sm text-gray-600">{user.email}</p>
                               <p className="text-sm text-gray-500">
-                                Requested Role: <span className="capitalize font-medium text-blue-600">
-                                  {user.requestedRole || 'Not specified'}
-                                </span>
-                              </p>
+  Requested Role: <span className="capitalize font-medium text-blue-600">
+    {user.requested_role || user.requestedRole || 'Not specified'}
+  </span>
+</p>
                               {user.phone && (
                                 <p className="text-sm text-gray-500">Phone: {user.phone}</p>
                               )}
@@ -944,22 +1067,22 @@ const handleCreateProject = async (e) => {
                           </div>
                           <div className="flex items-center space-x-2">
                             <select
-                              defaultValue={user.requestedRole || 'agent'}
-                              onChange={(e) => {
-                                const newRole = e.target.value;
-                                handleApproveUser(user.id, newRole);
-                              }}
-                              className="px-3 py-1 border border-gray-300 rounded text-sm"
-                            >
+  defaultValue={user.requested_role || user.requestedRole || 'agent'}
+  onChange={(e) => {
+    const newRole = e.target.value;
+    handleApproveUser(user.id, newRole);
+  }}
+  className="px-3 py-1 border border-gray-300 rounded text-sm"
+>
                               <option value="agent">Agent</option>
                               <option value="freelancer">Freelancer</option>
                               <option value="installer">Installer</option>
                               <option value="technician">Technician</option>
                             </select>
                             <button
-                              onClick={() => handleApproveUser(user.id, user.requestedRole || 'agent')}
-                              className="flex items-center px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                            >
+  onClick={() => handleApproveUser(user.id, user.requested_role || user.requestedRole || 'agent')}
+  className="flex items-center px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+>
                               <UserCheck className="w-4 h-4 mr-1" />
                               {t('approve')}
                             </button>
@@ -1437,7 +1560,7 @@ const handleCreateProject = async (e) => {
                       location: '',
                       customerId: '',
                       agentId: '',
-                      selectedEquipment: [],
+                      installerId: '',
                       type: 'solar'
                     });
                   }}
@@ -1656,59 +1779,76 @@ const handleCreateProject = async (e) => {
         </div>
       )}
 
-      {/* Assign Installer Modal */}
-      {showAssignInstaller && selectedProject && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Assign Installer</h3>
-            
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Project: <strong>{selectedProject.title}</strong></p>
-              <p className="text-sm text-gray-600">Customer: <strong>{selectedProject.customer_name}</strong></p>
-            </div>
+{/* Assign Installer Modal */}
+{showAssignInstaller && selectedProject && (
+  <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-lg max-w-md w-full p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Assign Installer</h3>
+      
+      <div className="mb-4">
+        <p className="text-sm text-gray-600 mb-2">Project: <strong>{selectedProject.title}</strong></p>
+        <p className="text-sm text-gray-600">Customer: <strong>{selectedProject.customer_name}</strong></p>
+      </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Installer *
-              </label>
-              <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    handleAssignInstallerAsAdmin(selectedProject.id, e.target.value);
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                defaultValue=""
-              >
-                <option value="">Choose an installer...</option>
-                {availableInstallers.map(installer => (
-                  <option key={installer.id} value={installer.id}>
-                    {installer.name} - {installer.role}
-                  </option>
-                ))}
-              </select>
-              
-              {availableInstallers.length === 0 && (
-                <p className="text-sm text-red-600 mt-2">No installers available. Please register installers first.</p>
-              )}
-            </div>
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Select Installer *
+        </label>
+        <select
+          value={selectedInstaller}
+          onChange={(e) => setSelectedInstaller(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="">Choose an installer...</option>
+          {availableInstallers.map(installer => (
+            <option key={installer.id} value={installer.id}>
+              {installer.name} - {installer.role}
+            </option>
+          ))}
+        </select>
+        
+        {availableInstallers.length === 0 && (
+          <p className="text-sm text-red-600 mt-2">No installers available. Please register installers first.</p>
+        )}
+      </div>
 
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAssignInstaller(false);
-                  setSelectedProject(null);
-                }}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      <div className="flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={() => {
+            setShowAssignInstaller(false);
+            setSelectedProject(null);
+            setSelectedInstaller('');
+          }}
+          className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!selectedInstaller) {
+              showToast('Please select an installer', 'error');
+              return;
+            }
+            handleAssignInstallerAsAdmin(selectedProject.id, selectedInstaller);
+          }}
+          disabled={!selectedInstaller}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Assign Installer
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+<StatusUpdateModal
+  isOpen={showStatusUpdate}
+  onClose={() => setShowStatusUpdate(false)}
+  project={selectedProjectForStatus}
+  currentUser={currentUser}
+  onUpdate={handleUpdateProjectStatus}
+/>
       {/* Customer Details Modal */}
       {showCustomerDetails && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -1790,6 +1930,170 @@ const handleCreateProject = async (e) => {
           </div>
         </div>
       )}
+      {/* Team Details Modal */}
+{showTeamDetails && (
+  <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-screen overflow-y-auto">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Team Details</h3>
+      
+      <div className="space-y-6">
+        {/* Project Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h4 className="font-medium text-blue-900 mb-2">{showTeamDetails.title}</h4>
+          <p className="text-sm text-blue-700">Status: {STAGE_LABELS[showTeamDetails.pipeline_stage]}</p>
+          <p className="text-sm text-blue-700">Value: ₹{showTeamDetails.value?.toLocaleString()}</p>
+        </div>
+
+        {/* Customer Details */}
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center mb-3">
+            <User className="w-5 h-5 text-gray-600 mr-2" />
+            <h4 className="font-medium text-gray-900">Customer</h4>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div>
+              <span className="font-medium text-gray-700">Name:</span>
+              <span className="ml-2">{showTeamDetails.customer_name}</span>
+            </div>
+            {showTeamDetails.customer_phone && (
+              <div>
+                <span className="font-medium text-gray-700">Phone:</span>
+                <span className="ml-2">{showTeamDetails.customer_phone}</span>
+              </div>
+            )}
+            <div>
+              <span className="font-medium text-gray-700">Location:</span>
+              <span className="ml-2">{showTeamDetails.location}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Freelancer Details */}
+        {showTeamDetails.metadata?.freelancer_name && (
+          <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+            <div className="flex items-center mb-3">
+              <UserPlus className="w-5 h-5 text-blue-600 mr-2" />
+              <h4 className="font-medium text-blue-900">Freelancer (Project Creator)</h4>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-medium text-blue-800">Name:</span>
+                <span className="ml-2 text-blue-700">{showTeamDetails.metadata.freelancer_name}</span>
+              </div>
+              <div>
+                <span className="font-medium text-blue-800">Created:</span>
+                <span className="ml-2 text-blue-700">
+                  {new Date(showTeamDetails.created_at).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Agent Details */}
+        {showTeamDetails.metadata?.agent_name && (
+          <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+            <div className="flex items-center mb-3">
+              <Users className="w-5 h-5 text-green-600 mr-2" />
+              <h4 className="font-medium text-green-900">Agent (Project Manager)</h4>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-medium text-green-800">Name:</span>
+                <span className="ml-2 text-green-700">{showTeamDetails.metadata.agent_name}</span>
+              </div>
+              {showTeamDetails.metadata.agent_enhanced_at && (
+                <div>
+                  <span className="font-medium text-green-800">Enhanced:</span>
+                  <span className="ml-2 text-green-700">
+                    {new Date(showTeamDetails.metadata.agent_enhanced_at).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Installer Details */}
+        {showTeamDetails.installer_name && (
+          <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+            <div className="flex items-center mb-3">
+              <Wrench className="w-5 h-5 text-purple-600 mr-2" />
+              <h4 className="font-medium text-purple-900">Installer</h4>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-medium text-purple-800">Name:</span>
+                <span className="ml-2 text-purple-700">{showTeamDetails.installer_name}</span>
+              </div>
+              {showTeamDetails.installer_assigned && (
+                <div>
+                  <span className="font-medium text-purple-800">Status:</span>
+                  <span className="ml-2 text-purple-700">
+                    {showTeamDetails.installation_complete ? 'Installation Complete' : 'Assigned'}
+                  </span>
+                </div>
+              )}
+              {showTeamDetails.completion_date && (
+                <div>
+                  <span className="font-medium text-purple-800">Completed:</span>
+                  <span className="ml-2 text-purple-700">{showTeamDetails.completion_date}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Project Flow Timeline */}
+        <div className="border border-gray-200 rounded-lg p-4">
+          <h4 className="font-medium text-gray-900 mb-3">Project Flow</h4>
+          <div className="space-y-2 text-sm">
+            {showTeamDetails.metadata?.freelancer_name && (
+              <div className="flex items-center text-blue-700">
+                <CheckCircle className="w-4 h-4 mr-2" />
+                <span>Created by {showTeamDetails.metadata.freelancer_name}</span>
+              </div>
+            )}
+            {showTeamDetails.metadata?.agent_enhanced && (
+              <div className="flex items-center text-green-700">
+                <CheckCircle className="w-4 h-4 mr-2" />
+                <span>Enhanced by {showTeamDetails.metadata.agent_name}</span>
+              </div>
+            )}
+            {showTeamDetails.metadata?.admin_approved && (
+              <div className="flex items-center text-purple-700">
+                <CheckCircle className="w-4 h-4 mr-2" />
+                <span>Approved by Admin</span>
+              </div>
+            )}
+            {showTeamDetails.installer_assigned && (
+              <div className="flex items-center text-orange-700">
+                <CheckCircle className="w-4 h-4 mr-2" />
+                <span>Assigned to {showTeamDetails.installer_name}</span>
+              </div>
+            )}
+            {showTeamDetails.installation_complete && (
+              <div className="flex items-center text-green-700">
+                <CheckCircle className="w-4 h-4 mr-2" />
+                <span>Installation Completed</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-3 pt-6">
+        <button
+          type="button"
+          onClick={() => setShowTeamDetails(null)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };

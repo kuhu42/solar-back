@@ -4,6 +4,9 @@ import { useApp } from '../../hooks/useApp.js'
 //import { LEAD_STATUS } from '../../types/index.js';
 import { PROJECT_STATUS, PIPELINE_STAGES, LEAD_STATUS } from '../../types/index.js';
 import PerformanceChart from '../Common/PerformanceChart.jsx';
+import StatusUpdateModal from '../Common/StatusUpdateModal.jsx';
+import { STAGE_LABELS, STAGE_COLORS, STAGE_PERMISSIONS } from '../../types/index.js';
+
 import { 
   TrendingUp, 
   DollarSign, 
@@ -22,7 +25,7 @@ import {
 } from 'lucide-react';
 
 const FreelancerDashboard = () => {
-  const { currentUser, leads, dispatch, showToast, createProject } = useApp();
+  const { currentUser, leads, projects, dispatch, showToast, createProject } = useApp(); 
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddLead, setShowAddLead] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false)
@@ -378,6 +381,64 @@ const handleCreateProject = async (e) => {
                   Create Project
                 </button>
               </div>
+               <div className="space-y-4">
+      {projects.filter(p => p.metadata?.freelancer_id === currentUser?.id).map(project => (
+        <div key={project.id} className="border border-gray-200 rounded-lg p-4">
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1">
+              <h4 className="font-medium text-gray-900">{project.title}</h4>
+              <p className="text-sm text-gray-600 mt-1">{project.description}</p>
+              <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                <span>Customer: {project.customer_name}</span>
+                <span>Location: {project.location}</span>
+              </div>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+              STAGE_COLORS[project.pipeline_stage] || 'bg-gray-100 text-gray-800'
+            }`}>
+              {STAGE_LABELS[project.pipeline_stage] || 'Unknown Status'}
+            </span>
+          </div>
+          
+          {/* Status tracking for freelancers */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+            <div className="text-sm">
+              <span className="font-medium text-blue-900">Project Flow:</span>
+              <div className="mt-1 space-y-1 text-blue-700">
+                <div className="flex items-center">
+                  <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                  Created by you on {new Date(project.created_at).toLocaleDateString()}
+                </div>
+                {project.status === 'agent_rejected' && (
+                  <div className="flex items-center text-red-700">
+                    <X className="w-4 h-4 text-red-600 mr-2" />
+                    Rejected by agent
+                  </div>
+                )}
+                {project.metadata?.agent_enhanced && (
+                  <div className="flex items-center">
+                    <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                    Enhanced by agent: {project.metadata.agent_name}
+                  </div>
+                )}
+                {project.status === 'pending_admin_review' && (
+                  <div className="flex items-center text-yellow-700">
+                    <Clock className="w-4 h-4 text-yellow-600 mr-2" />
+                    Waiting for admin approval
+                  </div>
+                )}
+                {project.status === 'approved' && (
+                  <div className="flex items-center text-green-700">
+                    <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+                    Approved by admin
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
               {/* Project creation modal - you'll need to add this */}
               {/* Add this right before the closing </div> of the component */}
              {showCreateProject && (

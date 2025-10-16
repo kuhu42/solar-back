@@ -1,4 +1,4 @@
-import React, { createContext, useReducer, useEffect } from 'react';
+import React, { createContext, useReducer, useEffect,useState } from 'react';
 import { dbService, supabase } from '../lib/supabase.js';
 import { authService } from '../lib/auth.js';
 import { USER_STATUS, PROJECT_STATUS, PIPELINE_STAGES, PROJECT_SOURCE } from '../types/index.js';
@@ -35,7 +35,42 @@ const initialState = {
   isLiveMode: true,
   realTimeSubscriptions: []
 };
-
+// In your useApp.js or AppContext.jsx file, update the updateProject function
+const updateProject = async (projectId, updates) => {
+    try {
+      console.log('updateProject called with:', { projectId, updates });
+      console.log('isLiveMode:', isLiveMode);
+      console.log('dbService available:', dbService?.isAvailable());
+      
+      if (isLiveMode && dbService?.isAvailable()) {
+        console.log('Using live database update');
+        
+        const updatedProject = await dbService.updateProjectWithStatusHistory(projectId, {
+          ...updates,
+          updated_by: currentUser?.name || 'System'
+        });
+        
+        console.log('Database update successful:', updatedProject);
+        
+        dispatch({
+          type: 'UPDATE_PROJECT',
+          payload: { id: projectId, updates: updatedProject }
+        });
+        
+        return updatedProject;
+      } else {
+        console.log('Using local state update only');
+        dispatch({
+          type: 'UPDATE_PROJECT',
+          payload: { id: projectId, updates }
+        });
+        return { id: projectId, ...updates };
+      }
+    } catch (error) {
+      console.error('Error in updateProject:', error);
+      throw error;
+    }
+  };
 function appReducer(state, action) {
   switch (action.type) {
     case 'SET_LIVE_MODE':
@@ -84,7 +119,15 @@ function appReducer(state, action) {
           p.id === action.payload.id ? { ...p, ...action.payload.updates } : p
         )
       };
-
+case 'UPDATE_PROJECT':
+      return {
+        ...state,
+        projects: state.projects.map(project => 
+          project.id === action.payload.id 
+            ? { ...project, ...action.payload.updates }
+            : project
+        )
+      };
     case 'ADD_INVENTORY_ITEM':
       return {
         ...state,
@@ -328,6 +371,7 @@ function appReducer(state, action) {
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
+  const [isLiveMode, setIsLiveMode] = useState(false);
 
   useEffect(() => {
     loadDemoData();
@@ -852,20 +896,39 @@ const createProject = async (projectData) => {
     }
   };
 
-  const updateProject = async (id, updates) => {
-    if (state.isLiveMode) {
-      try {
-        const updatedProject = await dbService.updateProject(id, updates);
+const updateProject = async (projectId, updates) => {
+    try {
+      console.log('updateProject called with:', { projectId, updates });
+      console.log('isLiveMode:', isLiveMode);
+      console.log('dbService available:', dbService?.isAvailable());
+      
+      if (isLiveMode && dbService?.isAvailable()) {
+        console.log('Using live database update');
+        
+        const updatedProject = await dbService.updateProjectWithStatusHistory(projectId, {
+          ...updates,
+          updated_by: currentUser?.name || 'System'
+        });
+        
+        console.log('Database update successful:', updatedProject);
+        
+        dispatch({
+          type: 'UPDATE_PROJECT',
+          payload: { id: projectId, updates: updatedProject }
+        });
+        
         return updatedProject;
-      } catch (error) {
-        console.error('Error updating project:', error);
-        throw error;
+      } else {
+        console.log('Using local state update only');
+        dispatch({
+          type: 'UPDATE_PROJECT',
+          payload: { id: projectId, updates }
+        });
+        return { id: projectId, ...updates };
       }
-    } else {
-      dispatch({
-        type: 'UPDATE_PROJECT_STATUS',
-        payload: { projectId: id, ...updates }
-      });
+    } catch (error) {
+      console.error('Error in updateProject:', error);
+      throw error;
     }
   };
 

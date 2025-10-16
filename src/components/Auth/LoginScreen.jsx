@@ -238,6 +238,7 @@ const handleCustomerSubmit = async (e) => {
         email: professionalForm.email, // Make sure email is included
         role: 'middleman',
         requestedRole: professionalForm.role,
+        requested_role: professionalForm.role, 
         status: 'pending',
         education: professionalForm.education,
         address: professionalForm.address,

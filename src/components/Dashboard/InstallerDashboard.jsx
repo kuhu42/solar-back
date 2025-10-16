@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 // import { useApp } from '../../context/AppContext.jsx';
 import { useApp } from '../../hooks/useApp.js'
 import { TASK_STATUS, INVENTORY_STATUS } from '../../types/index.js';
+import StatusUpdateModal from '../Common/StatusUpdateModal.jsx';
+import { STAGE_LABELS, STAGE_COLORS, STAGE_PERMISSIONS } from '../../types/index.js';
+
 import { 
   MapPin, 
   Clock, 
@@ -13,7 +16,9 @@ import {
   FileText,
   Calendar,
   AlertCircle,
-  Phone
+  Phone,
+  X,
+  Package
 } from 'lucide-react';
 
 const InstallerDashboard = () => {
@@ -26,6 +31,9 @@ const InstallerDashboard = () => {
   const [showCompleteInstallation, setShowCompleteInstallation] = useState(false);
 const [completingProject, setCompletingProject] = useState(null);
 const [installationNotes, setInstallationNotes] = useState('');
+const [installationModules, setInstallationModules] = useState([
+  { module: '', serialNumber: '' }
+]);
 
   const myTasks = tasks.filter(t => t.assignedTo === currentUser?.id);
   const todayAttendance = attendance.find(a => 
@@ -45,6 +53,13 @@ const handleCompleteInstallation = (project) => {
 const handleSubmitInstallationComplete = async (e) => {
   e.preventDefault();
   
+  // Validate that at least one module is entered
+  const validModules = installationModules.filter(m => m.module && m.serialNumber);
+  if (validModules.length === 0) {
+    showToast('Please add at least one module with serial number', 'error');
+    return;
+  }
+  
   try {
     await approveProject(completingProject.id, {
       status: 'completed',
@@ -52,10 +67,12 @@ const handleSubmitInstallationComplete = async (e) => {
       installation_complete: true,
       completion_date: new Date().toISOString().split('T')[0],
       installer_notes: installationNotes,
+      installed_modules: validModules,  // ✅ NEW: Add modules data
       metadata: {
         ...completingProject.metadata,
         installation_completed_at: new Date().toISOString(),
-        flow_stage: 'installation_complete'
+        flow_stage: 'installation_complete',
+        installed_equipment: validModules  // ✅ NEW: Also store in metadata
       }
     });
 
@@ -63,9 +80,25 @@ const handleSubmitInstallationComplete = async (e) => {
     setShowCompleteInstallation(false);
     setCompletingProject(null);
     setInstallationNotes('');
+    setInstallationModules([{ module: '', serialNumber: '' }]);  // ✅ Reset modules
   } catch (error) {
     showToast('Error completing installation: ' + error.message, 'error');
   }
+};
+const addModuleRow = () => {
+  setInstallationModules([...installationModules, { module: '', serialNumber: '' }]);
+};
+
+const removeModuleRow = (index) => {
+  if (installationModules.length > 1) {
+    setInstallationModules(installationModules.filter((_, i) => i !== index));
+  }
+};
+
+const updateModuleRow = (index, field, value) => {
+  const updated = [...installationModules];
+  updated[index][field] = value;
+  setInstallationModules(updated);
 };
   const handleCheckIn = () => {
     setCheckingIn(true);
@@ -575,6 +608,14 @@ const handleSubmitInstallationComplete = async (e) => {
                   <p>{project.customer_name}</p>
                 </div>
                 <div>
+    <span className="font-medium text-gray-700">Current Stage:</span>
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ml-2 ${
+      STAGE_COLORS[project.pipeline_stage] || 'bg-gray-100 text-gray-800'
+    }`}>
+      {STAGE_LABELS[project.pipeline_stage] || 'Unknown Status'}
+    </span>
+  </div>
+                <div>
                   <span className="font-medium text-gray-700">Phone:</span>
                   <p>{project.customer_phone}</p>
                 </div>
@@ -609,28 +650,49 @@ const handleSubmitInstallationComplete = async (e) => {
                   )}
                 </div>
               </div>
+              {/* ✅ ADD THIS: Installed Equipment Details - CORRECT LOCATION */}
+{project.metadata?.installed_equipment && project.metadata.installed_equipment.length > 0 && (
+  <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+    <div className="font-medium text-gray-900 text-sm mb-2">Installed Equipment:</div>
+    <div className="space-y-1">
+      {project.metadata.installed_equipment.map((item, idx) => (
+        <div key={idx} className="text-sm text-gray-700 flex items-center">
+          <Package className="w-3 h-3 mr-2 text-gray-500" />
+          <span className="font-medium">{item.module}</span>
+          <span className="mx-2 text-gray-400">•</span>
+          <span className="text-gray-600">SN: {item.serialNumber}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+  <div className="text-sm text-blue-700">
+    <span className="font-medium">Current Status:</span>
+    <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+      STAGE_COLORS[project.pipeline_stage] || 'bg-gray-100 text-gray-800'
+    }`}>
+      {STAGE_LABELS[project.pipeline_stage] || 'Unknown Status'}
+    </span>
+  </div>
+</div>
 
-              {/* Installation Notes */}
-              {project.installer_notes && (
-                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="font-medium text-green-900 text-sm mb-1">Installation Notes:</div>
-                  <p className="text-green-700 text-sm">{project.installer_notes}</p>
-                </div>
-              )}
+             
             </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center space-x-3 mt-4">
-            {project.status === 'in_progress' && (
-              <button
-                onClick={() => handleCompleteInstallation(project)}
-                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Mark Installation Complete
-              </button>
-            )}
+<div className="flex items-center space-x-3 mt-4">
+  {/* Show button if project is assigned to installer but not yet completed */}
+  {!project.installation_complete && project.installer_assigned && (
+    <button
+      onClick={() => handleCompleteInstallation(project)}
+      className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+    >
+      <CheckCircle className="w-4 h-4 mr-2" />
+      Mark Installation Complete
+    </button>
+  )}
             
             <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
               <Camera className="w-4 h-4 mr-2" />
@@ -658,7 +720,7 @@ const handleSubmitInstallationComplete = async (e) => {
 {/* Installation Completion Modal */}
 {showCompleteInstallation && completingProject && (
   <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">
-    <div className="bg-white rounded-lg max-w-md w-full p-6">
+    <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-screen overflow-y-auto">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Complete Installation</h3>
       
       <div className="space-y-4">
@@ -669,6 +731,58 @@ const handleSubmitInstallationComplete = async (e) => {
         </div>
         
         <form onSubmit={handleSubmitInstallationComplete} className="space-y-4">
+          {/* ✅ NEW SECTION: Installed Modules */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Installed Modules & Serial Numbers *
+              </label>
+              <button
+                type="button"
+                onClick={addModuleRow}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                + Add Module
+              </button>
+            </div>
+            
+            <div className="space-y-2">
+              {installationModules.map((module, index) => (
+                <div key={index} className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={module.module}
+                    onChange={(e) => updateModuleRow(index, 'module', e.target.value)}
+                    placeholder="Module type (e.g., 550W Panel)"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    required
+                  />
+                  <input
+                    type="text"
+                    value={module.serialNumber}
+                    onChange={(e) => updateModuleRow(index, 'serialNumber', e.target.value)}
+                    placeholder="Serial Number"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    required
+                  />
+                  {installationModules.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeModuleRow(index)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Add all modules installed with their serial numbers
+            </p>
+          </div>
+
+          {/* Installation Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Installation Notes
@@ -690,6 +804,7 @@ const handleSubmitInstallationComplete = async (e) => {
                 <p className="font-medium">Before marking complete:</p>
                 <ul className="mt-1 list-disc list-inside space-y-1">
                   <li>Verify all equipment is properly installed</li>
+                  <li>Record all module serial numbers</li>
                   <li>Test system functionality</li>
                   <li>Take completion photos</li>
                   <li>Get customer sign-off</li>
@@ -707,7 +822,10 @@ const handleSubmitInstallationComplete = async (e) => {
             </button>
             <button
               type="button"
-              onClick={() => setShowCompleteInstallation(false)}
+              onClick={() => {
+                setShowCompleteInstallation(false);
+                setInstallationModules([{ module: '', serialNumber: '' }]);
+              }}
               className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400"
             >
               Cancel
@@ -718,7 +836,6 @@ const handleSubmitInstallationComplete = async (e) => {
     </div>
   </div>
 )}
-
       {/* Task Completion Modal */}
       {selectedTask && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50">

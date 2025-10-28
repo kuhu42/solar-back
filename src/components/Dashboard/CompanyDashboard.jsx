@@ -41,6 +41,56 @@ import {
   Wrench 
 } from 'lucide-react';
 
+// --- Place at the top of your CompanyDashboard.jsx file ---
+// (before function CompanyDashboard or export default ...)
+
+function ReportsTable({ users, projects }) {
+  const reportRoles = ["agent", "installer", "freelancer"];
+  const reportUsers = users.filter(u => reportRoles.includes(u.role));
+
+  function getProjectCount(user) {
+    if (user.role === "agent") return projects.filter(p => p.agent_id === user.id).length;
+    if (user.role === "installer") return projects.filter(p => p.installer_id === user.id).length;
+    if (user.role === "freelancer")
+      return projects.filter(p => p.metadata && p.metadata.freelancer_id === user.id).length;
+    return 0;
+  }
+
+  return (
+    <div>
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance Reports</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full border rounded">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-2">Role</th>
+              <th className="px-4 py-2 text-center">Total Projects</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reportUsers.map(user => (
+              <tr key={user.id} className="border-t">
+                <td className="px-4 py-2">{user.name}</td>
+                <td className="px-4 py-2 capitalize">{user.role}</td>
+                <td className="px-4 py-2 text-center">{getProjectCount(user)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {reportUsers.length === 0 && (
+        <div className="text-center py-8">
+          <h4 className="text-lg font-medium text-gray-900 mb-2">No Reportable Users Found</h4>
+          <p className="text-gray-600">No agents, installers, or freelancers are currently registered.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
 const CompanyDashboard = () => {
   const { t, currentLanguage } = useLanguage();
   const { 
@@ -122,10 +172,19 @@ const [createProjectForm, setCreateProjectForm] = useState({
     totalValue: inventory.reduce((sum, i) => sum + (i.cost || 0), 0)
   };
 
+  // const filteredUsers = users.filter(user => {
+  //   if (userFilter === 'all') return true;
+  //   if (userFilter === 'active') return user.status === 'active';
+  //   if (userFilter === 'inactive') return user.status === 'inactive';
+  //   return true;
+  // });
   const filteredUsers = users.filter(user => {
-    if (userFilter === 'all') return true;
-    if (userFilter === 'active') return user.status === 'active';
-    if (userFilter === 'inactive') return user.status === 'inactive';
+    if (userFilter === "all") return true;
+    if (userFilter === "active") return user.status === "active";
+    if (userFilter === "inactive") return user.status === "inactive";
+    if (userFilter === "installer") return user.role === "installer";
+    if (userFilter === "agent") return user.role === "agent";
+    if (userFilter === "customer") return user.role === "customer";
     return true;
   });
 
@@ -620,8 +679,21 @@ const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
             >
               {t('staffTracking')}
             </button>
+            <button
+              onClick={() => setActiveTab("reports")}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${activeTab === "reports" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}
+            >
+              Reports
+            </button>
+
           </div>
         </div>
+
+
+        {activeTab === "reports" && (
+          <ReportsTable users={users} projects={projects} />
+        )}
+
 
         <div className="p-6">
           {activeTab === 'overview' && (
@@ -1161,7 +1233,7 @@ const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
               )}
 
               {/* User Status Filter */}
-              <div className="flex items-center space-x-4 bg-gray-50 p-4 rounded-lg">
+              {/* <div className="flex items-center space-x-4 bg-gray-50 p-4 rounded-lg">
                 <span className="text-sm font-medium text-gray-700">Filter by status:</span>
                 <div className="flex space-x-2">
                   <button
@@ -1195,7 +1267,38 @@ const handleAssignInstallerAsAdmin = async (projectId, installerId) => {
                     Inactive
                   </button>
                 </div>
-              </div>
+              </div> */}
+              <div className="flex items-center space-x-4 bg-gray-50 p-4 rounded-lg">
+  <span className="text-sm font-medium text-gray-700">Filter by status & role</span>
+  <div className="flex space-x-2">
+    {/* Status Filter Buttons */}
+    <button onClick={() => setUserFilter("all")}
+      className={`px-3 py-1 rounded-full text-xs font-medium ${userFilter === "all" ? "bg-blue-100 text-blue-800" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>
+      All Users
+    </button>
+    <button onClick={() => setUserFilter("active")}
+      className={`px-3 py-1 rounded-full text-xs font-medium ${userFilter === "active" ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>
+      Active
+    </button>
+    <button onClick={() => setUserFilter("inactive")}
+      className={`px-3 py-1 rounded-full text-xs font-medium ${userFilter === "inactive" ? "bg-red-100 text-red-800" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>
+      Inactive
+    </button>
+    {/* Role Filter Buttons */}
+    <button onClick={() => setUserFilter("installer")}
+      className={`px-3 py-1 rounded-full text-xs font-medium ${userFilter === "installer" ? "bg-purple-100 text-purple-800" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>
+      Installers
+    </button>
+    <button onClick={() => setUserFilter("agent")}
+      className={`px-3 py-1 rounded-full text-xs font-medium ${userFilter === "agent" ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>
+      Agents
+    </button>
+    <button onClick={() => setUserFilter("customer")}
+      className={`px-3 py-1 rounded-full text-xs font-medium ${userFilter === "customer" ? "bg-blue-100 text-blue-800" : "bg-gray-200 text-gray-600 hover:bg-gray-300"}`}>
+      Customers
+    </button>
+  </div>
+</div>
 
               {/* All Users Table */}
               <div>
